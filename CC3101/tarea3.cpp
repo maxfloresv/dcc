@@ -7,14 +7,12 @@ vector <vector <int>> adj;
 vector <string> lines;
 vector <int> blocks, identations;
 
-// ok
 bool is_valid_char(char s) {
 	// Uso de la tabla ASCII para determinar si tengo una
 	// variable o no (https://www.ascii-code.com/)
 	return 'a' <= s && s <= 'z';
 }
 
-// ok
 char* string_to_array(string s) {
 	int len = (int) s.size();
 	
@@ -25,7 +23,6 @@ char* string_to_array(string s) {
 	return res;
 }
 
-// ok
 int identation(string s, string tp, int tab) {
 	int id = 0;
 	tp += "\t";
@@ -38,59 +35,95 @@ int identation(string s, string tp, int tab) {
 	return id;
 }
 
-
-void padre(int s) {
-	return;
+bool check_first(string inst, char* arr) {
+	int len = (int) inst.size();
+	char* inst_ = string_to_array(inst);
+	
+	return !strncmp(inst_, arr, len);
 }
 
 // start: índice de inicio de lectura
-void build(int start) {
+// end: índice de fin de lectura
+int build(int start, int end) {
 	int line_size = (int) lines.size();
+	// No podemos leer más líneas
 	if (start >= line_size)
-		return;
+		return -1;
 	
-	for (int i=start; i<line_size; i++) {
+	int s = start;
+	for (int i=start; i<end; i++) {
+		// Array de la línea actual
+		char* line = string_to_array(lines[i]);
+		// Actualizamos s como el índice de la instrucción actual
+		s = i;
 		
-	}
-	// Estamos en un caso donde el índice i es if sin else
-	
-	// Caso base if solo
-	if (if) {
-		adj[i].push_back(i+1);
-		// Solo conectamos si existe código después
-		if (i+2 < line_size) {
-			adj[i].push_back(i+2);
-			adj[i+1].push_back(i+2);
+		if (check_first("if", line)) {
+			// i+1 es la línea siguiente al if
+			while (++s < line_size && identations[i] < identations[s])
+				continue;
+			
+			int out = build(i+1, s-1);
+			
+			// Conectamos el nodo actual con el siguiente
+			adj[i].push_back(i+1);
+			// Conectamos ambos a la salida (si encontramos un
+			// else, la borramos de adj[i] posteriormente)
+			adj[i].push_back(out);
+			adj[i+1].push_back(out);
 		}
-		build(i+1);
-	}
-	
-	else if (if else) {
-		adj[i].push_back(i+1);
-		adj[i].push_back(i+2);
-		// Ídem
-		if (i + 3 < line_size) {
-			adj[i+1].push_back(i+3);
-			adj[i+2].push_back(i+3);
+		else if (check_first("else", line)) {
+			while (identations[i] < identations[++s])
+				continue;
+				
+			int d = i;
+			while (--d >= 0 && identations[i] < identations[d])
+				continue;
+				
+			// Nos entrega la salida del if inmediatamente anterior
+			int out = build(d, s-1);
+			auto itr = find(adj[d].begin(), adj[d].end(), out);
+			
+			// Si el iterador existe, lo borramos
+			if (itr != adj[d].end())
+				adj[d].erase(itr);
+				
+			// Agregamos la condición del else
+			adj[d].push_back(i+1);
+			adj[i+1].push_back(out);
+			
+			build(i+1, s-1);
 		}
-		build(i+1);
-	} 
-	
-	else if (while) {
-		
-	} 
-	
-	else {
-		// i es puro código
-		if (i >= 1)
-			adj[i].push_back(padre(i-1))
+		else if (check_first("while", line)) {
+			while (++s < line_size && identations[i] < identations[s])
+				continue;
+			
+			int out = build(i+1, s-1);
+			// Conectamos el while con el cuerpo y la salida
+			adj[i].push_back(i+1);
+			adj[i].push_back(out);
+			// Conectamos el último bloque con el while
+			// TO-DO: Hay que determinar el último bloque,
+			// no necesariamente es i+1
+			adj[i+1].push_back(i);
+		} 			
+		else {
+			// Caso de código sin keywords
+			while (++s < line_size && identations[i] < identations[s])
+				continue;
+				
+			// Tengo que conectar con el nodo "FIN"
+			if (s == line_size)
+				adj[i].push_back(i+1);
+			else
+				// Sino, sigue habiendo código y conecto con la salida
+				adj[i].push_back(build(i+1, s-1));
+		}
 	}
-		
-	// Caso base while solo
-	} else if (
-		
-	check_if(...)
-}*/
+	
+	// Retornamos el nodo de salida. 
+	// s viene inmediatamente después de end.	
+	return s;
+}
 
 // main() ok
 int main() {
@@ -147,9 +180,25 @@ int main() {
 		identations.push_back(0);
 	}
 	
+	/*
+	for (int i=0;i<(int)blocks.size(); i++)
+		cout << lines[i] << ' ' << blocks[i] << ' ' << identations[i] << '\n';*/
+		
+		
+	
 	// TO-DO:: llamar a las funciones que generen las aristas
 	// y hacer el dfs
-	// build(0)
+	int len = (int) blocks.size();
+	adj.resize(len);
+	build(0, len-1);
+	
+	for (int i=0; i<(int) adj.size(); i++) {
+		cout << "i= " << i << '\n';
+		for (int j=0; j<(int) adj[i].size(); j++) {
+			cout << adj[i][j] << ' ';
+		}
+		cout << '\n';
+	}
 	
 	return 0;
 }
