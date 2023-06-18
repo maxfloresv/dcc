@@ -56,11 +56,26 @@ int build(int start, int end) {
 		char* line = string_to_array(lines[i]);
 		// Actualizamos s como el índice de la instrucción actual
 		s = i;
+		bool ok = 1;
 		
 		if (check_first("if", line)) {
 			// i+1 es la línea siguiente al if
-			while (++s < line_size && identations[i] < identations[s])
+			while (++s < line_size && identations[i] < identations[s]) {
+				// Estoy en la última iteración posible
+				if (s == line_size-1 && identations[i] < identations[s])
+					// Entonces no hubo ninguna línea que cumplió
+					// la condición iden[i] < iden[s]
+					ok = 0;
+					
 				continue;
+			}
+				
+			if (!ok) {
+				// Si no se pudo conectar a código, conectamos al
+				// nodo que apunta a "FIN"
+				adj[i].push_back(s-1);
+				return s-1;
+			}
 			
 			int out = build(i+1, s-1);
 			
@@ -125,7 +140,6 @@ int build(int start, int end) {
 	return s;
 }
 
-// main() ok
 int main() {
 	fstream file;
 	// ios::in para leer el archivo
@@ -134,7 +148,7 @@ int main() {
 	if (file.is_open()) {
 		string line;
 		// Procesamos el archivo y los bloques
-		int i = 0, indexBlocks = 1, last_id = -1;
+		int i = 0, indexBlocks = 0, last_id = -1;
 		while (getline(file, line)) {
 			// Primero vemos las identaciones
 			int id_line = identation(line, "", 1);
@@ -147,15 +161,15 @@ int main() {
 			
 			char* line_ = string_to_array(line);
 			// Revisa si la línea actual empieza con una instrucción
-			if (!strncmp("if", line_, 2)) {
+			if (check_first("if", line_)) {
 				blocks.push_back(indexBlocks);
 				indexBlocks++;
 			}
-			else if (!strncmp("else", line_, 4)) {
+			else if (check_first("else", line_)) {
 				blocks.push_back(indexBlocks);
 				indexBlocks++;
 			}
-			else if (!strncmp("while", line_, 5)) {
+			else if (check_first("while", line_)) {
 				// Si la linea anterior no tiene while
 				if (last_id == id_line)
 					indexBlocks++;
@@ -180,9 +194,8 @@ int main() {
 		identations.push_back(0);
 	}
 	
-	/*
 	for (int i=0;i<(int)blocks.size(); i++)
-		cout << lines[i] << ' ' << blocks[i] << ' ' << identations[i] << '\n';*/
+		cout << lines[i] << ' ' << blocks[i] << ' ' << identations[i] << '\n';
 		
 		
 	
