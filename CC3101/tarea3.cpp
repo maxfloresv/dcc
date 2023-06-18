@@ -20,128 +20,96 @@ char* string_to_array(string s) {
 	return res;
 }
 
+int identation(string s, string tp, int tab) {
+	int id = 0;
+	tp += "\t";
+	char* s_ = string_to_array(s);
+	char* tp_ = string_to_array(tp);
+	if (!strncmp(tp_, s_, tab)) {
+		id++;
+		id += identation(s, tp, tab+1);
+	}
+	return id;
+}
+
+char* recognizeInst(int id_line, string inst) {
+	string tabs(id_line, '\t');
+	tabs += inst;
+
+	return string_to_array(tabs);
+}
+
 int main() {
 	fstream file;
 	// ios::in para leer el archivo
 	file.open("prueba.txt", ios::in);
 	
-	// Este mapa almacena cada variable usada y su estado.
-	// false := No tiene problema. true := Generó un error.
-	map <char, bool> used_vars;
-	map <char, vector <bool>> graph;
-	vector <string> inst;
-	
-	// Cada while agregará una cantidad de nodos distintas. El que
-	// tiene código agrega 3, y el que no, agrega 2.
-	// NC := no tiene código antes (un tipo de while)
-	int while_nc_cnt = 0;
-	// C := sí tiene código (otro tipo de while)
-	int while_c_cnt = 0;
-	int if_cnt = 0;
-	int else_cnt = 0;
+	vector <vector <int>> adj;
+	vector <string> lines;
+	vector <int> blocks;
 	
 	if (file.is_open()) {
 		string line;
-		// Procesamos el archivo
+		// Procesamos el archivo y los bloques
+		int i = 0, indexBlocks = 1, last_id = -1;
 		while (getline(file, line)) {
-			int start = 0;
-			while (!is_valid_char(line[start]))
-				start++;
+			lines.push_back(line);
+			char* line_ = string_to_array(line);
+
+			int id_line = identation(line, "", 1);
+
+			char* token_if = recognizeInst(id_line, "if");
+			char* token_else = recognizeInst(id_line, "else");
+			char* token_while = recognizeInst(id_line, "while");
 			
-			// Reemplazamos los espacios que no sean una indentación
-			// por un caracter vacío.
-			//replace(line.begin() + start, line.end(), ' ', '\0');
-			inst.push_back(line);
-		}
-				
-		int lines = (int) inst.size();
-		
-		// Agregamos todas las variables posibles al grafo
-		for (int i = 97; i <= 122; i++) {
-			// Si la i-ésima línea es false, entonces esa variable
-			// no aparece en esa línea.
-			vector <bool> v(lines, false);
-			// Inicializo todas las variables posibles con un vector 
-			// lleno de false.
-			graph[char(i)] = v;
-		}
+			// Revisa si la línea actual empieza con "if"...
+			if (!strncmp(token_if, line_, 2 + id_line)) {
+				blocks.push_back(indexBlocks);
+				indexBlocks++;
+			}
+
+			// ...o con "else"...
+			else if (!strncmp(token_else, line_, 4 + id_line)) {					
+				blocks.push_back(indexBlocks);
+				indexBlocks++;
+			}
 			
-		// Primer recorrido: para crear la lista de adyacencia
-		for (int i = 0; i < lines; i++) {
-			char* curr_inst = string_to_array(inst[i]);
-			
-			bool is_while = strncmp("while", curr_inst, 5) == 0;
-			bool is_if = strncmp("if", curr_inst, 2) == 0;
-			bool is_else = strncmp("else", curr_inst, 4) == 0;
-			
-			if (is_while) {
-				if (i == 0)
-					// Si es la primera línea, no puede haber código
-					while_nc_cnt += 1;
-				else {
-					char* prev_inst = string_to_array(inst[i-1]);
-					// Sino, depende si la línea anterior empieza o no
-					// con un while (si es true, se considera que no
-					// hay código entremedio).
-					bool has_code = strncmp("while", prev_inst, 5) != 0;
-					if (has_code)
-						while_c_cnt += 1;
-					else
-						while_nc_cnt += 1;
-				}
+			// ...o con "while"
+			else if (!strncmp(token_while, line_, 5 + id_line)) {
+				// Si la linea anterior no tiene while
+				if (last_id == id_line)
+					indexBlocks++;
+					
+				blocks.push_back(indexBlocks);
+				indexBlocks++;
 			} 
 			
-			else if (is_if) {
-				if_cnt += 1;
+			else {
+				if (last_id > id_line)
+					indexBlocks++;
+				blocks.push_back(indexBlocks);
 			}
-			 
-			else if (is_else) {
-				else_cnt += 1;
-			}
-			
-			/*	
-			// Leemos el largo de la i-ésima instrucción
-			int inst_size = (int) inst[i].size();
-			for (int j = 0; j < inst_size; j++) {
-				char curr = inst[i][j];
-				
-				if (is_valid_char(curr)) {
-					
-					if (is_w
-					
-					string res = "";
-					while (is_valid_char(curr)) {
-						res += curr;
-						char next = inst[i][j+1];
-						
-						// Caso función (p. ej. f(x, y))
-						// Ojo: inst[i][j+2] existe porque suponemos
-						// que no hay errores de sintaxis.
-						if (next == '(') {
-							// Procesar las variables
-							while (next != ')') {
-								
-							}
-							
-						}
-							
-								
-						else if (next == ',')
-							
-						
-						curr = next;
-					}
-				}
-				graph[curr] = 1;
-			}*/
+			i++;
+			last_id = id_line;
 		}
 		
-		int nodes = if_cnt + else_cnt + while_c_cnt * 3 \
-			+ while_nc_cnt * 2 + 1;
-			
-		cout << nodes << '\n';
-
+		for (int j=0; j < (int) blocks.size(); j++) {
+			//cout << "j: " << j << '\n';
+			cout << lines[j] << ' ' << blocks[j] << '\n';
+		}
+		
 		file.close();
+	}
+	
+	int nodo_sz = (int) blocks.size();
+	for (int i=1; i<nodo_sz; i++) {
+		// Están en bloques distintos
+		if (blocks[i] != blocks[i-1]) {
+			
+			// while
+			// if
+			// else
+		}
 	}
 	
 	return 0;
