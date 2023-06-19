@@ -3,6 +3,7 @@
 #include <fstream>
 #include <typeinfo>
 using namespace std;
+using state = pair <int, int>;
 // Usamos un vector de sets para que no se repitan índices
 vector <set <int>> adj;
 vector <string> lines;
@@ -10,6 +11,7 @@ vector <int> blocks, identations;
 // Para el DFS
 vector <bool> visited;
 // Mapa de variables con las líneas para revisar error
+// TO-DO: set <state>. (L, 0) indica definición y (L, 1) indica uso
 map <char, set <int>> vars; 
 
 bool is_valid_char(char s) {
@@ -18,41 +20,24 @@ bool is_valid_char(char s) {
 	return 'a' <= s && s <= 'z';
 }
 
-char* string_to_array(string s) {
-	int len = (int) s.size();
-	
-	// Se le suma 1 por el caracter nulo al final
-	char* res = new char[len + 1];
-	strcpy(res, s.c_str());
-
-	return res;
+// Revisa si los primeros caracteres de s son iguales a comp
+bool match(string s, string comp) {
+	int len = (int) comp.size();
+	return s.substr(0, len) == comp;
 }
 
-int indentation(string s) {
-	// Usamos una variable estática para que no se redeclare
-	static int tab = 1;
+int indentation(string s, int num_chars = 1) {
 	int id = 0;
 	// Construimos el string con las tabulaciones rastreadas
-	string tp(tab, '\t');
+	string t(num_chars, '\t');
 
-	char* s_cmp = string_to_array(s);
-	char* tp_cmp = string_to_array(tp);
-
-	// strncmp entrega 0 (false) sólo si son iguales
-	if (!strncmp(tp_cmp, s_cmp, tab)) {
+	// Buscamos hasta que ya no existan coincidencias
+	if (match(s, t)) {
 		id++;
-		tab++;
-		id += indentation(s);
-		tab--;
+		id += indentation(s, num_chars + 1);
 	}
 
 	return id;
-}
-
-bool check_first(string inst, char* arr) {
-	int len = (int) inst.size();
-	char* inst_ = string_to_array(inst);
-	return !strncmp(inst_, arr, len);
 }
 
 void var_detector(string s, int line) {
@@ -116,7 +101,7 @@ vector <int> conectar_while(int start, int end, int tab) {
 	// encontrar el while con menor identacion
 	// si no existe el end queda igual
 	for (int i=0; i<whiles.size(); i++) {
-		if (check_first(lines[whiles[i]], "while")) {
+		if (match(lines[whiles[i]], "while")) {
 			end = whiles[i];
 			break;
 		}
@@ -171,12 +156,12 @@ void build(int start, int end, bool inside_while) {
 	int s = start;
 	for (int i=start; i<end; i++) {
 		// Array de la línea actual
-		char* line = string_to_array(lines[i]);
+		string line = lines[i];
 		// Actualizamos s como el índice de la instrucción actual
 		s = i;
 		bool ok = 1;
 		
-		if (check_first("if", line)) {
+		if (match(line, "if")) {
 			// i+1 es la línea siguiente al if
 			while (++s < line_size && identations[i] < identations[s]) {
 				// Estoy en la última iteración posible
@@ -209,7 +194,7 @@ void build(int start, int end, bool inside_while) {
 			// que está entremedio
 			build(i+1, s-1, inside_while);
 		}
-		else if (check_first("else", line)) {
+		else if (match(line, "else")) {
 			while (++s < line_size && identations[i] < identations[s]) {
 				if (s == line_size-1 && identations[i] < identations[s])
 					ok = 0;
@@ -243,7 +228,7 @@ void build(int start, int end, bool inside_while) {
 			
 			build(i+1, s-1, inside_while);
 		}
-		else if (check_first("while", line)) {
+		else if (match(line, "while")) {
 			while (++s < line_size && identations[i] < identations[s]) {
 				if (s == line_size-1 && identations[i] < identations[s])
 					ok = 0;
@@ -315,24 +300,23 @@ int main() {
 			line = line.substr(identations[i]);
 			lines.push_back(line);
 			
-			char* line_ = string_to_array(line);
 			// Revisa si la línea actual empieza con una instrucción
-			if (check_first("if", line_)) {
+			if (match(line, "if")) {
 				// Si la linea anterior tiene distinta tabulacion
 				if (last_id != id_line){
 					// caso if o else previo a un if
-					if (i > 0 && !check_first("else", string_to_array(lines[i-1])) && !check_first("if", string_to_array(lines[i-1])))
+					if (i > 0 && !match(lines[i-1], "else") && !match(lines[i-1], "if"))
 						indexBlocks++;
 				}
 				
 				blocks.push_back(indexBlocks);
 				indexBlocks++;
 			}
-			else if (check_first("else", line_)) {
+			else if (match(line, "else")) {
 				blocks.push_back(indexBlocks);
 				indexBlocks++;
 			}
-			else if (check_first("while", line_)) {
+			else if (match(line, "while")) {
 				// Si la linea anterior no tiene condición
 				if (i > 0)
 					indexBlocks++;
@@ -363,7 +347,7 @@ int main() {
 	for (string line : lines) {
 		if (line == "FIN")
 			continue;
-			
+
 		var_detector(line, current++);
 	}
 	
