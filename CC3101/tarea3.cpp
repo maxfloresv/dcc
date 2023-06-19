@@ -46,7 +46,7 @@ bool check_first(string inst, char* arr) {
 int build(int start, int end) {
 	int line_size = (int) lines.size();
 	// No podemos leer más líneas
-	if (start >= line_size)
+	if (start >= line_size || start > end)
 		return start-1;
 	
 	int s = start;
@@ -72,18 +72,18 @@ int build(int start, int end) {
 			if (!ok) {
 				// Si no se pudo conectar a código, conectamos al
 				// nodo que apunta a "FIN"
-				adj[i].push_back(s-1);
+				adj[blocks[i]].push_back(blocks[s-1]);
 				return s-1;
 			}
 			
 			int out = build(i+1, s-1);
 			
 			// Conectamos el nodo actual con el siguiente
-			adj[i].push_back(i+1);
+			adj[blocks[i]].push_back(blocks[i+1]);
 			// Conectamos ambos a la salida (si encontramos un
-			// else, la borramos de adj[i] posteriormente)
-			adj[i].push_back(out);
-			adj[i+1].push_back(out);
+			// else, la borramos de adj[blocks[i]] posteriormente)
+			adj[blocks[i]].push_back(blocks[out]);
+			adj[blocks[i+1]].push_back(blocks[out]);
 		}
 		else if (check_first("else", line)) {
 			while (++s < line_size && identations[i] < identations[s]) {
@@ -99,7 +99,7 @@ int build(int start, int end) {
 			if (!ok) {
 				// Si no se pudo conectar a código, conectamos al
 				// nodo que apunta a "FIN"
-				adj[i].push_back(s-1);
+				adj[blocks[i]].push_back(blocks[s-1]);
 				return s-1;
 			}
 
@@ -109,15 +109,15 @@ int build(int start, int end) {
 				
 			// Nos entrega la salida del if inmediatamente anterior
 			int out = build(d, s-1);
-			auto itr = find(adj[d].begin(), adj[d].end(), out);
+			auto itr = find(adj[blocks[d]].begin(), adj[blocks[d]].end(), out);
 			
 			// Si el iterador existe, lo borramos
-			if (itr != adj[d].end())
-				adj[d].erase(itr);
+			if (itr != adj[blocks[d]].end())
+				adj[blocks[d]].erase(itr);
 				
 			// Agregamos la condición del else
-			adj[d].push_back(i+1);
-			adj[i+1].push_back(out);
+			adj[blocks[d]].push_back(blocks[i+1]);
+			adj[blocks[i+1]].push_back(blocks[out]);
 			
 			build(i+1, s-1);
 		}
@@ -135,18 +135,18 @@ int build(int start, int end) {
 			if (!ok) {
 				// Si no se pudo conectar a código, conectamos al
 				// nodo que apunta a "FIN"
-				adj[i].push_back(s-1);
+				adj[blocks[i]].push_back(blocks[s-1]);
 				return s-1;
 			}
 
 			int out = build(i+1, s-1);
 			// Conectamos el while con el cuerpo y la salida
-			adj[i].push_back(i+1);
-			adj[i].push_back(out);
+			adj[blocks[i]].push_back(blocks[i+1]);
+			adj[blocks[i]].push_back(blocks[out]);
 			// Conectamos el último bloque con el while
 			// TO-DO: Hay que determinar el último bloque,
 			// no necesariamente es i+1
-			adj[i+1].push_back(i);
+			adj[blocks[i+1]].push_back(blocks[i]);
 		} 			
 		else {
 			// Caso de código sin keywords
@@ -163,16 +163,18 @@ int build(int start, int end) {
 			if (!ok) {
 				// Si no se pudo conectar a código, conectamos al
 				// nodo que apunta a "FIN"
-				adj[i].push_back(s-1);
+				adj[blocks[i]].push_back(blocks[s-1]);
 				return s-1;
 			}
 
 			// Tengo que conectar con el nodo "FIN"
 			if (s == line_size)
-				adj[i].push_back(i+1);
-			else
+				adj[blocks[i]].push_back(blocks[i+1]);
+			else {
 				// Sino, sigue habiendo código y conecto con la salida
-				adj[i].push_back(build(i+1, s-1));
+				int out = build(i+1, s-1);
+				adj[blocks[i]].push_back(blocks[out]);
+			}
 		}
 	}
 	
@@ -196,11 +198,10 @@ int main() {
 			// Las agregamos a un vector
 			identations.push_back(id_line);
 			
-			// Luego, eliminamos las tabulaciones
-			replace(line.begin(), line.end(), '\t', '\0');
+			// Luego, empezamos desde el primer caracter válido
+			line = line.substr(identations[i]);
 			lines.push_back(line);
 			
-			line = line.substr(identations[i]); // cagada de maximo hace bien la wea
 			char* line_ = string_to_array(line);
 			// Revisa si la línea actual empieza con una instrucción
 			if (check_first("if", line_)) {
@@ -241,11 +242,13 @@ int main() {
 	
 	// TO-DO:: llamar a las funciones que generen las aristas
 	// y hacer el dfs
-	int len = blocks[blocks.end()];
-	cout<<len<<endl;
+	int blocks_sz = (int) blocks.size();
+	// Entrega el número de nodos
+	int len = blocks[blocks_sz-1];
 	adj.resize(len);
 	build(0, len-1);
-	for (int i=0; i<(int) adj.size(); i++) {
+	
+	for (int i=0; i<len; i++) {
 		cout << "i = " << i << '\n';
 		for (int j=0; j<(int) adj[i].size(); j++) {
 			cout << adj[i][j] << ' ';
@@ -255,3 +258,4 @@ int main() {
 	
 	return 0;
 }
+
