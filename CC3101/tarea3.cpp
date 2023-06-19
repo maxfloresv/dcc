@@ -66,12 +66,50 @@ void dfs(int s) {
     }
 }
 
-vector <int> conectar_while(int start, int end, vector <int> &res) {
-	for (int i=end; i>=start; i--) {
-		continue;
-	}
+vector <int> conectar_while(int start, int end, int tab) {
+	// numero de la linea donde esta cada while con identacion menor a la ultima linea
+	vector <int> whiles, res;
+	int t = identation(lines[end], "", 1), t2 = t;
+	int i = end, j = end;
 	
-	return vector <int> ();
+	// mientras hayan tabulaciones mayores a tab (la tabulacion del while que estamos comprobando actualmente)
+	while (t2 > tab) {
+		t = identation(lines[i], "", 1);
+		if (t2 == t) 
+			whiles.push_back(i);
+		t2--;
+		i--;
+	}
+
+	// encontrar el while con menor identacion
+	// si no existe el end queda igual
+	for (int i=0; i<whiles.size(); i++) {
+		if (check_first(lines[whiles[i]], "while")){
+			end = whiles[i];
+			break;
+		}
+	}
+
+	// hallar los bloques que retornan al while padre
+	// Caso no habia while
+	if (end == j){
+		for (int i=0; i<whiles.size(); i++)
+			res.push_back(blocks[i]);
+	}
+
+	// Caso habia while
+	else {
+		int k = whiles.size();
+		while (whiles[k] != end) {
+			res.push_back(blocks[whiles[k]]);
+			k--;
+		}
+		res.push_back(blocks[whiles[k]]);
+	}
+
+	//TODO Caso else
+
+	return res;
 }
 
 int contar_arcos() {
@@ -195,16 +233,15 @@ void build(int start, int end, bool inside_while) {
 			// Conectamos el while con el cuerpo y la salida
 			adj[blocks[i]].insert(blocks[i+1]);
 			adj[blocks[i]].insert(blocks[s]);
-			// Conectamos el último bloque con el while
-			// TO-DO: Hay que determinar el último bloque,
-			// no necesariamente es i+1
-			while (false) {
-				adj[blocks[i+1]].insert(blocks[i]);
+			// Conectamos los bloques correspondientes con el while 
+			vector <int> res = conectar_while(i+1, s-1, identations[i]);
+			for (int j=0; j<res.size(); j++) {
+				adj[res[j]].insert(blocks[i]);
 			}
 			
 			build(i+1, s-1, true);
 			inside_while = false;
-		} 			
+		}
 		else {
 			// Caso de código sin keywords
 			while (++s < line_size && identations[i] < identations[s]) {
@@ -328,4 +365,3 @@ int main() {
 	
 	return 0;
 }
-
