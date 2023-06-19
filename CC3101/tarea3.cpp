@@ -296,6 +296,13 @@ int main() {
 			char* line_ = string_to_array(line);
 			// Revisa si la línea actual empieza con una instrucción
 			if (check_first("if", line_)) {
+				// Si la linea anterior tiene distinta tabulacion
+				if (last_id != id_line){
+					// caso if o else previo a un if
+					if (i > 0 && !check_first("else", string_to_array(lines[i-1])) && !check_first("if", string_to_array(lines[i-1])))
+						indexBlocks++;
+				}
+				
 				blocks.push_back(indexBlocks);
 				indexBlocks++;
 			}
@@ -305,9 +312,8 @@ int main() {
 			}
 			else if (check_first("while", line_)) {
 				// Si la linea anterior no tiene condición
-				if (last_id == id_line)
+				if (i > 0)
 					indexBlocks++;
-				
 				blocks.push_back(indexBlocks);
 				indexBlocks++;
 			}
