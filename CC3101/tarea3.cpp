@@ -2,10 +2,15 @@
 #include <iostream>
 #include <fstream>
 #include <typeinfo>
-using namespace std;	
-vector <vector <int>> adj;
+using namespace std;
+// Usamos un vector de sets para que no se repitan índices
+vector <set <int>> adj;
 vector <string> lines;
 vector <int> blocks, identations;
+// Para el DFS
+vector <bool> visited;
+// Mapa de variables con las líneas para revisar error
+map <char, vector <int>> vars; 
 
 bool is_valid_char(char s) {
 	// Uso de la tabla ASCII para determinar si tengo una
@@ -41,13 +46,33 @@ bool check_first(string inst, char* arr) {
 	return !strncmp(inst_, arr, len);
 }
 
+void dfs(int s) {
+    stack <int> pila;                  
+    pila.push(s);
+
+    while (!pila.empty()) {
+        int u = pila.top();
+        pila.pop();
+        
+        visited[u] = true;
+
+        for (int v: adj[u]) {
+            if (visited[v] == 0) {
+                visited[v] = 1;
+                pila.push(v);
+            }
+        }
+    }
+}
+
 // start: índice de inicio de lectura
 // end: índice de fin de lectura
-int build(int start, int end) {
+// Crea las aristas del grafo
+void build(int start, int end) {
 	int line_size = (int) lines.size();
 	// No podemos leer más líneas
 	if (start >= line_size || start > end)
-		return start-1;
+		return;
 	
 	int s = start;
 	for (int i=start; i<end; i++) {
@@ -72,18 +97,20 @@ int build(int start, int end) {
 			if (!ok) {
 				// Si no se pudo conectar a código, conectamos al
 				// nodo que apunta a "FIN"
-				adj[blocks[i]].push_back(blocks[s-1]);
-				return s-1;
+				adj[blocks[i]].insert(blocks[s-1]);
+				return;
 			}
 			
-			int out = build(i+1, s-1);
-			
 			// Conectamos el nodo actual con el siguiente
-			adj[blocks[i]].push_back(blocks[i+1]);
+			adj[blocks[i]].insert(blocks[i+1]);
 			// Conectamos ambos a la salida (si encontramos un
 			// else, la borramos de adj[blocks[i]] posteriormente)
-			adj[blocks[i]].push_back(blocks[out]);
-			adj[blocks[i+1]].push_back(blocks[out]);
+			adj[blocks[i]].insert(blocks[s]);
+			adj[blocks[i+1]].insert(blocks[s]);
+			
+			// La llamada recursiva para analizar el bloque
+			// que está entremedio
+			build(i+1, s-1);
 		}
 		else if (check_first("else", line)) {
 			while (++s < line_size && identations[i] < identations[s]) {
@@ -99,8 +126,8 @@ int build(int start, int end) {
 			if (!ok) {
 				// Si no se pudo conectar a código, conectamos al
 				// nodo que apunta a "FIN"
-				adj[blocks[i]].push_back(blocks[s-1]);
-				return s-1;
+				adj[blocks[i+1]].insert(blocks[s-1]);
+				return;
 			}
 
 			int d = i;
@@ -108,17 +135,19 @@ int build(int start, int end) {
 				continue;
 				
 			// Nos entrega la salida del if inmediatamente anterior
-			int out = build(d, s-1);
-			auto itr = find(adj[blocks[d]].begin(), adj[blocks[d]].end(), out);
+			//int out = build(d, s-1);
+			set <int> curr = adj[blocks[d]];
+			auto itr = find(curr.begin(), curr.end(), blocks[s]);
 			
 			// Si el iterador existe, lo borramos
-			if (itr != adj[blocks[d]].end())
-				adj[blocks[d]].erase(itr);
+			if (itr != curr.end())
+				curr.erase(itr);
 				
 			// Agregamos la condición del else
-			adj[blocks[d]].push_back(blocks[i+1]);
-			adj[blocks[i+1]].push_back(blocks[out]);
+			curr.insert(blocks[i+1]);
+			adj[blocks[i+1]].insert(blocks[s]);
 			
+			// Revisamos recursivamente el bloque que está dentro
 			build(i+1, s-1);
 		}
 		else if (check_first("while", line)) {
@@ -135,20 +164,22 @@ int build(int start, int end) {
 			if (!ok) {
 				// Si no se pudo conectar a código, conectamos al
 				// nodo que apunta a "FIN"
-				adj[blocks[i]].push_back(blocks[s-1]);
-				return s-1;
+				adj[blocks[i]].insert(blocks[s-1]);
+				return;
 			}
 
-			int out = build(i+1, s-1);
 			// Conectamos el while con el cuerpo y la salida
-			adj[blocks[i]].push_back(blocks[i+1]);
-			adj[blocks[i]].push_back(blocks[out]);
+			adj[blocks[i]].insert(blocks[i+1]);
+			adj[blocks[i]].insert(blocks[s]);
 			// Conectamos el último bloque con el while
 			// TO-DO: Hay que determinar el último bloque,
 			// no necesariamente es i+1
-			adj[blocks[i+1]].push_back(blocks[i]);
+			adj[blocks[i+1]].insert(blocks[i]);
+			
+			build(i+1, s-1);
 		} 			
 		else {
+			// EL PROBLEMA ESTÁ ACÁ
 			// Caso de código sin keywords
 			while (++s < line_size && identations[i] < identations[s]) {
 				// Estoy en la última iteración posible
@@ -163,24 +194,21 @@ int build(int start, int end) {
 			if (!ok) {
 				// Si no se pudo conectar a código, conectamos al
 				// nodo que apunta a "FIN"
-				adj[blocks[i]].push_back(blocks[s-1]);
-				return s-1;
+				adj[blocks[i]].insert(blocks[s-1]);
+				return;
 			}
 
 			// Tengo que conectar con el nodo "FIN"
 			if (s == line_size)
-				adj[blocks[i]].push_back(blocks[i+1]);
+				adj[blocks[i]].insert(blocks[i+1]);
 			else {
 				// Sino, sigue habiendo código y conecto con la salida
-				int out = build(i+1, s-1);
-				adj[blocks[i]].push_back(blocks[out]);
+				adj[blocks[i]].insert(blocks[s]);
 			}
+			
+			build(i+1, s-1);
 		}
 	}
-	
-	// Retornamos el nodo de salida. 
-	// s viene inmediatamente después de end.	
-	return s;
 }
 
 int main() {
@@ -209,7 +237,7 @@ int main() {
 				indexBlocks++;
 			}
 			else if (check_first("else", line_)) {
-                blocks.push_back(indexBlocks);
+				blocks.push_back(indexBlocks);
 				indexBlocks++;
 			}
 			else if (check_first("while", line_)) {
@@ -246,16 +274,16 @@ int main() {
 	// Entrega el número de nodos
 	int len = blocks[blocks_sz-1];
 	adj.resize(len);
+	visited.assign(len, false);
 	build(0, len-1);
 	
 	for (int i=0; i<len; i++) {
 		cout << "i = " << i << '\n';
-		for (int j=0; j<(int) adj[i].size(); j++) {
-			cout << adj[i][j] << ' ';
+		for (auto j=adj[i].begin(); j != adj[i].end(); j++){
+			cout << *j << ' ';
 		}
 		cout << '\n';
 	}
 	
 	return 0;
 }
-
