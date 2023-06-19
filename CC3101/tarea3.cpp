@@ -58,6 +58,7 @@ void dfs(int s) {
 
         for (int v: adj[u]) {
             if (visited[v] == 0) {
+				// TO-DO: agregar dfs modificado
                 visited[v] = 1;
                 pila.push(v);
             }
@@ -68,7 +69,7 @@ void dfs(int s) {
 // start: índice de inicio de lectura
 // end: índice de fin de lectura
 // Crea las aristas del grafo
-void build(int start, int end) {
+void build(int start, int end, bool inside_while) {
 	int line_size = (int) lines.size();
 	// No podemos leer más líneas
 	if (start >= line_size || start > end)
@@ -105,12 +106,15 @@ void build(int start, int end) {
 			adj[blocks[i]].insert(blocks[i+1]);
 			// Conectamos ambos a la salida (si encontramos un
 			// else, la borramos de adj[blocks[i]] posteriormente)
-			adj[blocks[i]].insert(blocks[s]);
-			adj[blocks[i+1]].insert(blocks[s]);
+			// Lo hacemos sólo si no estamos dentro de un while
+			if (!inside_while) {
+				adj[blocks[i]].insert(blocks[s]);
+				adj[blocks[i+1]].insert(blocks[s]);
+			}
 			
 			// La llamada recursiva para analizar el bloque
 			// que está entremedio
-			build(i+1, s-1);
+			build(i+1, s-1, inside_while);
 		}
 		else if (check_first("else", line)) {
 			while (++s < line_size && identations[i] < identations[s]) {
@@ -145,10 +149,13 @@ void build(int start, int end) {
 				
 			// Agregamos la condición del else
 			curr.insert(blocks[i+1]);
-			adj[blocks[i+1]].insert(blocks[s]);
+			// Agregamos la conexión con lo que sigue sólo si
+			// no está dentro de un while
+			if (!inside_while)
+				adj[blocks[i+1]].insert(blocks[s]);
 			
 			// Revisamos recursivamente el bloque que está dentro
-			build(i+1, s-1);
+			build(i+1, s-1, inside_while);
 		}
 		else if (check_first("while", line)) {
 			while (++s < line_size && identations[i] < identations[s]) {
@@ -176,10 +183,10 @@ void build(int start, int end) {
 			// no necesariamente es i+1
 			adj[blocks[i+1]].insert(blocks[i]);
 			
-			build(i+1, s-1);
+			build(i+1, s-1, true);
+			inside_while = false;
 		} 			
 		else {
-			// EL PROBLEMA ESTÁ ACÁ
 			// Caso de código sin keywords
 			while (++s < line_size && identations[i] < identations[s]) {
 				// Estoy en la última iteración posible
@@ -191,7 +198,7 @@ void build(int start, int end) {
 				continue;
 			}
 				
-			if (!ok) {
+			if (!ok && !inside_while) {
 				// Si no se pudo conectar a código, conectamos al
 				// nodo que apunta a "FIN"
 				adj[blocks[i]].insert(blocks[s-1]);
@@ -199,14 +206,14 @@ void build(int start, int end) {
 			}
 
 			// Tengo que conectar con el nodo "FIN"
-			if (s == line_size)
+			if (s == line_size && !inside_while)
 				adj[blocks[i]].insert(blocks[i+1]);
-			else {
+			else if (!inside_while) {
 				// Sino, sigue habiendo código y conecto con la salida
 				adj[blocks[i]].insert(blocks[s]);
 			}
 			
-			build(i+1, s-1);
+			build(i+1, s-1, inside_while);
 		}
 	}
 }
@@ -259,13 +266,13 @@ int main() {
 		
 		file.close();
 		
-		lines.push_back("fin");
+		lines.push_back("FIN");
 		blocks.push_back(++indexBlocks); 
 		// Consideraremos que esta línea no tiene identación
 		identations.push_back(0);
 	}
 	
-	for (int i=0;i<(int)blocks.size(); i++)
+	for (int i=0;i<(int)lines.size(); i++)
 		cout << "linea: " << lines[i] << " / bloque: " << blocks[i] << " / identacion: " << identations[i] << '\n';
 	
 	// TO-DO:: llamar a las funciones que generen las aristas
@@ -275,7 +282,7 @@ int main() {
 	int len = blocks[blocks_sz-1];
 	adj.resize(len);
 	visited.assign(len, false);
-	build(0, len-1);
+	build(0, len-1, false);
 	
 	for (int i=0; i<len; i++) {
 		cout << "i = " << i << '\n';
@@ -287,3 +294,4 @@ int main() {
 	
 	return 0;
 }
+
