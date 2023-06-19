@@ -60,7 +60,6 @@ void var_detector(string s, int line) {
 	}
 }
 
-
 void dfs(int s) {
     stack <int> pila;                  
     pila.push(s);
@@ -367,12 +366,13 @@ int main() {
 	// Borramos la "diagonal"
 	for (int i=0; i<nodos; i++) 
 		for (auto itr = adj[i].begin(); itr != adj[i].end(); itr++)
-			if (*itr == i)
+			if (*itr == i && adj[i].find(i) != adj[i].end())
 				adj[i].erase(itr);
 
 	int arcos = contar_arcos();
 
 	// Imprime el mapa vars
+	cout << "-----MAPA-----\n";
 	for (auto itr = vars.begin(); itr != vars.end(); itr++) {
 		set <int> s = vars[itr->first];
 		cout << itr->first << ": ";
@@ -381,8 +381,9 @@ int main() {
 		cout << '\n';
 	}
 	
+	cout << "-----LISTA DE ADYACENCIA-----\n";
 	for (int i=0; i<nodos; i++) {
-		cout << "i = " << i << '\n';
+		cout << i << ": ";
 		for (auto j=adj[i].begin(); j != adj[i].end(); j++){
 			cout << *j << ' ';
 		}
