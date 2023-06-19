@@ -10,7 +10,7 @@ vector <int> blocks, identations;
 // Para el DFS
 vector <bool> visited;
 // Mapa de variables con las líneas para revisar error
-map <char, vector <int>> vars; 
+map <char, set <int>> vars; 
 
 bool is_valid_char(char s) {
 	// Uso de la tabla ASCII para determinar si tengo una
@@ -28,7 +28,7 @@ char* string_to_array(string s) {
 	return res;
 }
 
-int identation(string s) {
+int indentation(string s) {
 	// Usamos una variable estática para que no se redeclare
 	static int tab = 1;
 	int id = 0;
@@ -42,7 +42,7 @@ int identation(string s) {
 	if (!strncmp(tp_cmp, s_cmp, tab)) {
 		id++;
 		tab++;
-		id += identation(s);
+		id += indentation(s);
 		tab--;
 	}
 
@@ -54,6 +54,27 @@ bool check_first(string inst, char* arr) {
 	char* inst_ = string_to_array(inst);
 	return !strncmp(inst_, arr, len);
 }
+
+void var_detector(string s, int line) {
+	int size = (int) s.size();
+	// Asumiendo buena sintaxis, este caso es imposible, pero
+	// es importante handlearlo por si acaso
+	if (size == 1)
+		return;
+
+	if (!is_valid_char(s[1]))
+		vars[s[0]].insert(blocks[line]);
+
+	for (int i=1; i<size-1; i++) {
+		// El caso s[i+1] == '(' es porque es función. Ej: f(x, y)
+		if (!is_valid_char(s[i]) || s[i+1] == '(')
+			continue;
+
+		if (!is_valid_char(s[i-1]) && !is_valid_char(s[i+1]))
+			vars[s[i]].insert(blocks[line]);
+	}
+}
+
 
 void dfs(int s) {
     stack <int> pila;                  
@@ -286,7 +307,7 @@ int main() {
 		int i = 0, indexBlocks = 0, last_id = -1;
 		while (getline(file, line)) {
 			// Primero vemos las identaciones
-			int id_line = identation(line);
+			int id_line = indentation(line);
 			// Las agregamos a un vector
 			identations.push_back(id_line);
 			
@@ -335,6 +356,16 @@ int main() {
 		// Consideraremos que esta línea no tiene identación
 		identations.push_back(0);
 	}
+
+	// Corremos el detector de variables. Notemos que las líneas
+	// están 0-indexadas
+	int current = 0;
+	for (string line : lines) {
+		if (line == "FIN")
+			continue;
+			
+		var_detector(line, current++);
+	}
 	
 	for (int i=0;i<(int)lines.size(); i++)
 		cout << "linea: " << lines[i] << " / bloque: " << blocks[i] << " / identacion: " << identations[i] << '\n';
@@ -356,6 +387,15 @@ int main() {
 				adj[i].erase(itr);
 
 	int arcos = contar_arcos();
+
+	// Imprime el mapa vars
+	for (auto itr = vars.begin(); itr != vars.end(); itr++) {
+		set <int> s = vars[itr->first];
+		cout << itr->first << ": ";
+		for (auto it = s.begin(); it != s.end(); it++) 
+			cout << *it << ' ';
+		cout << '\n';
+	}
 	
 	for (int i=0; i<nodos; i++) {
 		cout << "i = " << i << '\n';
