@@ -66,6 +66,23 @@ void dfs(int s) {
     }
 }
 
+vector <int> conectar_while(int start, int end, vector <int> &res) {
+	for (int i=end; i>=start; i--) {
+		continue;
+	}
+	
+	return vector <int> ();
+}
+
+int contar_arcos() {
+	int adj_sz = (int) adj.size();
+	int ans = 0;
+	for (int i=0; i<adj_sz; i++)
+		ans += adj[i].size();
+	
+	return ans;
+}
+
 // start: índice de inicio de lectura
 // end: índice de fin de lectura
 // Crea las aristas del grafo
@@ -181,7 +198,9 @@ void build(int start, int end, bool inside_while) {
 			// Conectamos el último bloque con el while
 			// TO-DO: Hay que determinar el último bloque,
 			// no necesariamente es i+1
-			adj[blocks[i+1]].insert(blocks[i]);
+			while (false) {
+				adj[blocks[i+1]].insert(blocks[i]);
+			}
 			
 			build(i+1, s-1, true);
 			inside_while = false;
@@ -278,19 +297,34 @@ int main() {
 	// TO-DO:: llamar a las funciones que generen las aristas
 	// y hacer el dfs
 	int blocks_sz = (int) blocks.size();
-	// Entrega el número de nodos
-	int len = blocks[blocks_sz-1];
-	adj.resize(len);
-	visited.assign(len, false);
-	build(0, len-1, false);
+	// Entrega el número de nodos y arcos
+	int nodos = blocks[blocks_sz-1];
+
+	adj.resize(nodos);
+	visited.assign(nodos, false);
+	build(0, nodos-1, false);
+
+	int arcos = contar_arcos();
 	
-	for (int i=0; i<len; i++) {
+	for (int i=0; i<nodos; i++) {
 		cout << "i = " << i << '\n';
 		for (auto j=adj[i].begin(); j != adj[i].end(); j++){
 			cout << *j << ' ';
 		}
 		cout << '\n';
 	}
+	
+	cout << "CFG\n";
+	cout << "Nodos: " << nodos << '\n';
+	cout << "Arcos: " << arcos << '\n';
+	cout << "Componentes conexos: 1\n\n";
+	
+	cout << "Variables indefinidas\n";
+	cout << "Variable: \n";
+	cout << "Camino: \n\n";
+	
+	cout << "Complejidad ciclomática\n";
+	cout << arcos - nodos + 2;
 	
 	return 0;
 }
