@@ -28,15 +28,24 @@ char* string_to_array(string s) {
 	return res;
 }
 
-int identation(string s, string tp, int tab) {
+int identation(string s) {
+	// Usamos una variable estática para que no se redeclare
+	static int tab = 1;
 	int id = 0;
-	tp += "\t";
-	char* s_ = string_to_array(s);
-	char* tp_ = string_to_array(tp);
-	if (!strncmp(tp_, s_, tab)) {
+	// Construimos el string con las tabulaciones rastreadas
+	string tp(tab, '\t');
+
+	char* s_cmp = string_to_array(s);
+	char* tp_cmp = string_to_array(tp);
+
+	// strncmp entrega 0 (false) sólo si son iguales
+	if (!strncmp(tp_cmp, s_cmp, tab)) {
 		id++;
-		id += identation(s, tp, tab+1);
+		tab++;
+		id += identation(s);
+		tab--;
 	}
+
 	return id;
 }
 
@@ -57,16 +66,16 @@ void dfs(int s) {
         visited[u] = true;
 
         for (int v: adj[u]) {
-            if (visited[v] == 0) {
+            if (!visited[v]) {
 				// TO-DO: agregar dfs modificado
-                visited[v] = 1;
-                pila.push(v);
+				visited[v] = true;
+				pila.push(v);
             }
         }
     }
 }
 
-// res: bloques que se van al while padre
+// Devuelve un vector con los bloques que se conectan con el while padre
 vector <int> conectar_while(int start, int end, int tab) {
 	// numero de la linea donde esta cada while con identacion menor a la ultima linea
 	vector <int> whiles, res;
@@ -76,7 +85,7 @@ vector <int> conectar_while(int start, int end, int tab) {
 	// mientras hayan tabulaciones mayores a tab (la tabulacion del while que estamos comprobando actualmente)
 	while (t2 > tab) {
 		t = identations[i];
-		if (t2 == t){
+		if (t2 == t) {
 			whiles.push_back(i);
 			t2--;
 		}
@@ -86,20 +95,19 @@ vector <int> conectar_while(int start, int end, int tab) {
 	// encontrar el while con menor identacion
 	// si no existe el end queda igual
 	for (int i=0; i<whiles.size(); i++) {
-		if (check_first(lines[whiles[i]], "while")){
+		if (check_first(lines[whiles[i]], "while")) {
 			end = whiles[i];
 			break;
 		}
 	}
 
-	// hallar los bloques que retornan al while padre
-	// Caso no habia while
-	if (end == j){
+	// Hallar los bloques que retornan al while padre
+	// Caso 1: No había while
+	if (end == j)
 		for (int i=0; i<whiles.size(); i++)
 			res.push_back(blocks[whiles[i]]);
-	}
 
-	// Caso habia while
+	// Caso 2: Había while
 	else {
 		int k = whiles.size();
 		while (whiles[k] != end) {
@@ -153,7 +161,7 @@ void build(int start, int end, bool inside_while) {
 				// Estoy en la última iteración posible
 				if (s == line_size-1 && identations[i] < identations[s])
 					// Entonces no hubo ninguna línea que cumplió
-					// la condición iden[i] < iden[s]
+					// la condición identations[i] < identations[s]
 					ok = 0;
 					
 				continue;
@@ -182,18 +190,13 @@ void build(int start, int end, bool inside_while) {
 		}
 		else if (check_first("else", line)) {
 			while (++s < line_size && identations[i] < identations[s]) {
-				// Estoy en la última iteración posible
 				if (s == line_size-1 && identations[i] < identations[s])
-					// Entonces no hubo ninguna línea que cumplió
-					// la condición iden[i] < iden[s]
 					ok = 0;
 					
 				continue;
 			}
 				
 			if (!ok) {
-				// Si no se pudo conectar a código, conectamos al
-				// nodo que apunta a "FIN"
 				adj[blocks[i+1]].insert(blocks[s-1]);
 				return;
 			}
@@ -203,11 +206,10 @@ void build(int start, int end, bool inside_while) {
 				continue;
 				
 			// Nos entrega la salida del if inmediatamente anterior
-			//int out = build(d, s-1);
 			set <int> curr = adj[blocks[d]];
 			auto itr = find(curr.begin(), curr.end(), blocks[s]);
 			
-			// Si el iterador existe, lo borramos
+			// Si el iterador existe, borramos la arista porque hay un else
 			if (itr != curr.end())
 				curr.erase(itr);
 				
@@ -218,23 +220,17 @@ void build(int start, int end, bool inside_while) {
 			if (!inside_while)
 				adj[blocks[i+1]].insert(blocks[s]);
 			
-			// Revisamos recursivamente el bloque que está dentro
 			build(i+1, s-1, inside_while);
 		}
 		else if (check_first("while", line)) {
 			while (++s < line_size && identations[i] < identations[s]) {
-				// Estoy en la última iteración posible
 				if (s == line_size-1 && identations[i] < identations[s])
-					// Entonces no hubo ninguna línea que cumplió
-					// la condición iden[i] < iden[s]
 					ok = 0;
 					
 				continue;
 			}
 			
 			if (!ok) {
-				// Si no se pudo conectar a código, conectamos al
-				// nodo que apunta a "FIN"
 				adj[blocks[i]].insert(blocks[s-1]);
 				return;
 			}
@@ -255,18 +251,13 @@ void build(int start, int end, bool inside_while) {
 		else {
 			// Caso de código sin keywords
 			while (++s < line_size && identations[i] < identations[s]) {
-				// Estoy en la última iteración posible
 				if (s == line_size-1 && identations[i] < identations[s])
-					// Entonces no hubo ninguna línea que cumplió
-					// la condición iden[i] < iden[s]
 					ok = 0;
 					
 				continue;
 			}
 			
 			if (!ok && !inside_while) {
-				// Si no se pudo conectar a código, conectamos al
-				// nodo que apunta a "FIN"
 				adj[blocks[i]].insert(blocks[s-1]);
 				return;
 			}
@@ -295,7 +286,7 @@ int main() {
 		int i = 0, indexBlocks = 0, last_id = -1;
 		while (getline(file, line)) {
 			// Primero vemos las identaciones
-			int id_line = identation(line, "", 1);
+			int id_line = identation(line);
 			// Las agregamos a un vector
 			identations.push_back(id_line);
 			
@@ -324,6 +315,7 @@ int main() {
 				// Si la linea anterior no tiene condición
 				if (i > 0)
 					indexBlocks++;
+
 				blocks.push_back(indexBlocks);
 				indexBlocks++;
 			}
