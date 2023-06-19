@@ -357,6 +357,12 @@ int main() {
 	visited.assign(nodos, false);
 	build(0, nodos-1, false);
 
+	// Borramos la "diagonal"
+	for (int i=0; i<nodos; i++) 
+		for (auto itr = adj[i].begin(); itr != adj[i].end(); itr++)
+			if (*itr == i)
+				adj[i].erase(itr);
+
 	int arcos = contar_arcos();
 	
 	for (int i=0; i<nodos; i++) {
