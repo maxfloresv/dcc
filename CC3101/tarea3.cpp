@@ -19,7 +19,7 @@ char* string_to_array(string s) {
 	// Se le suma 1 por el caracter nulo al final
 	char* res = new char[len + 1];
 	strcpy(res, s.c_str());
-	
+
 	return res;
 }
 
@@ -38,7 +38,6 @@ int identation(string s, string tp, int tab) {
 bool check_first(string inst, char* arr) {
 	int len = (int) inst.size();
 	char* inst_ = string_to_array(inst);
-	
 	return !strncmp(inst_, arr, len);
 }
 
@@ -48,7 +47,7 @@ int build(int start, int end) {
 	int line_size = (int) lines.size();
 	// No podemos leer más líneas
 	if (start >= line_size)
-		return -1;
+		return start-1;
 	
 	int s = start;
 	for (int i=start; i<end; i++) {
@@ -69,7 +68,7 @@ int build(int start, int end) {
 					
 				continue;
 			}
-				
+			
 			if (!ok) {
 				// Si no se pudo conectar a código, conectamos al
 				// nodo que apunta a "FIN"
@@ -87,9 +86,23 @@ int build(int start, int end) {
 			adj[i+1].push_back(out);
 		}
 		else if (check_first("else", line)) {
-			while (identations[i] < identations[++s])
+			while (++s < line_size && identations[i] < identations[s]) {
+				// Estoy en la última iteración posible
+				if (s == line_size-1 && identations[i] < identations[s])
+					// Entonces no hubo ninguna línea que cumplió
+					// la condición iden[i] < iden[s]
+					ok = 0;
+					
 				continue;
+			}
 				
+			if (!ok) {
+				// Si no se pudo conectar a código, conectamos al
+				// nodo que apunta a "FIN"
+				adj[i].push_back(s-1);
+				return s-1;
+			}
+
 			int d = i;
 			while (--d >= 0 && identations[i] < identations[d])
 				continue;
@@ -109,9 +122,23 @@ int build(int start, int end) {
 			build(i+1, s-1);
 		}
 		else if (check_first("while", line)) {
-			while (++s < line_size && identations[i] < identations[s])
+			while (++s < line_size && identations[i] < identations[s]) {
+				// Estoy en la última iteración posible
+				if (s == line_size-1 && identations[i] < identations[s])
+					// Entonces no hubo ninguna línea que cumplió
+					// la condición iden[i] < iden[s]
+					ok = 0;
+					
 				continue;
+			}
 			
+			if (!ok) {
+				// Si no se pudo conectar a código, conectamos al
+				// nodo que apunta a "FIN"
+				adj[i].push_back(s-1);
+				return s-1;
+			}
+
 			int out = build(i+1, s-1);
 			// Conectamos el while con el cuerpo y la salida
 			adj[i].push_back(i+1);
@@ -123,9 +150,23 @@ int build(int start, int end) {
 		} 			
 		else {
 			// Caso de código sin keywords
-			while (++s < line_size && identations[i] < identations[s])
+			while (++s < line_size && identations[i] < identations[s]) {
+				// Estoy en la última iteración posible
+				if (s == line_size-1 && identations[i] < identations[s])
+					// Entonces no hubo ninguna línea que cumplió
+					// la condición iden[i] < iden[s]
+					ok = 0;
+					
 				continue;
+			}
 				
+			if (!ok) {
+				// Si no se pudo conectar a código, conectamos al
+				// nodo que apunta a "FIN"
+				adj[i].push_back(s-1);
+				return s-1;
+			}
+
 			// Tengo que conectar con el nodo "FIN"
 			if (s == line_size)
 				adj[i].push_back(i+1);
@@ -154,11 +195,12 @@ int main() {
 			int id_line = identation(line, "", 1);
 			// Las agregamos a un vector
 			identations.push_back(id_line);
-				
+			
 			// Luego, eliminamos las tabulaciones
 			replace(line.begin(), line.end(), '\t', '\0');
 			lines.push_back(line);
 			
+			line = line.substr(identations[i]); // cagada de maximo hace bien la wea
 			char* line_ = string_to_array(line);
 			// Revisa si la línea actual empieza con una instrucción
 			if (check_first("if", line_)) {
@@ -166,17 +208,17 @@ int main() {
 				indexBlocks++;
 			}
 			else if (check_first("else", line_)) {
-				blocks.push_back(indexBlocks);
+                blocks.push_back(indexBlocks);
 				indexBlocks++;
 			}
 			else if (check_first("while", line_)) {
-				// Si la linea anterior no tiene while
+				// Si la linea anterior no tiene condición
 				if (last_id == id_line)
 					indexBlocks++;
-					
+				
 				blocks.push_back(indexBlocks);
 				indexBlocks++;
-			} 			
+			}
 			else {
 				if (last_id > id_line)
 					indexBlocks++;
@@ -188,25 +230,23 @@ int main() {
 		
 		file.close();
 		
-		lines.push_back("FIN");
+		lines.push_back("fin");
 		blocks.push_back(++indexBlocks); 
 		// Consideraremos que esta línea no tiene identación
 		identations.push_back(0);
 	}
 	
 	for (int i=0;i<(int)blocks.size(); i++)
-		cout << lines[i] << ' ' << blocks[i] << ' ' << identations[i] << '\n';
-		
-		
+		cout << "linea: " << lines[i] << " / bloque: " << blocks[i] << " / identacion: " << identations[i] << '\n';
 	
 	// TO-DO:: llamar a las funciones que generen las aristas
 	// y hacer el dfs
-	int len = (int) blocks.size();
+	int len = blocks[blocks.end()];
+	cout<<len<<endl;
 	adj.resize(len);
 	build(0, len-1);
-	
 	for (int i=0; i<(int) adj.size(); i++) {
-		cout << "i= " << i << '\n';
+		cout << "i = " << i << '\n';
 		for (int j=0; j<(int) adj[i].size(); j++) {
 			cout << adj[i][j] << ' ';
 		}
