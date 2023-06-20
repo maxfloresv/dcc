@@ -375,31 +375,30 @@ int main() {
 	visited.assign(nodos, false);
 	build(0, blocks_sz-1, false);
 
-	// Borramos la "diagonal"
-	for (int i=0; i<nodos; i++) 
-		for (auto itr = adj[i].begin(); *itr < *adj[i].end(); itr++)
-			if (*itr == i && adj[i].find(*itr) != adj[i].end()){
-				adj[i].erase(*itr);
-			}
+ 	// Borramos la "diagonal"
+    for (int i = 0; i < nodos; i++) 
+        for (int j : adj[i])
+            if (j == i)
+                adj[i].erase(i);
 
 	int arcos = contar_arcos();
-
 	// Imprime el mapa vars
 	cout << "-----MAPA-----\n";
 	for (auto itr = vars.begin(); itr != vars.end(); itr++) {
-		set <int> s = vars[itr->first];
-		cout << itr->first << ": ";
-		for (auto it = s.begin(); it != s.end(); it++) 
-			cout << *it << ' ';
+		int key = itr->first;
+		set <int> s = vars[key];
+		cout << key << ": ";
+		for (int j : s) 
+			cout << j << ' ';
 		cout << '\n';
 	}
 	
 	cout << "-----LISTA DE ADYACENCIA-----\n";
-	for (int i=0; i<nodos; i++) {
+	for (int i = 0; i < nodos; i++) {
 		cout << i << ": ";
-		for (auto j=adj[i].begin(); j != adj[i].end(); j++){
-			cout << *j << ' ';
-		}
+		for (int j : adj[i])
+			cout << j << ' ';
+
 		cout << '\n';
 	}
 	
