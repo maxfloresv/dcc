@@ -14,6 +14,16 @@ vector <bool> visited;
 // TO-DO: set <state>. (L, 0) indica definición y (L, 1) indica uso
 map <char, set <int>> vars; 
 
+// Encontrar el lower bound (estrictamente menor) del set s
+int lower_bound2(set <int> s, int bound) {
+	int m = -1;
+	for (int i : s) {
+		if (i < bound)
+			m = max(m, i);
+	}
+	return m;
+}
+
 bool is_valid_char(char s) {
 	// Uso de la tabla ASCII para determinar si tengo una
 	// variable o no (https://www.ascii-code.com/)
@@ -187,10 +197,12 @@ void build(int start, int end, bool inside_while) {
 			// else, la borramos de adj[blocks[i]] posteriormente)
 			// Lo hacemos sólo si no estamos dentro de un while
 			if (!inside_while) {
-				if (match(lines[s], "else"))
+				if (match(lines[s], "else")){
 					adj[blocks[i]].insert(blocks[s+1]);
+				}
 				else {
 					adj[blocks[i]].insert(blocks[s]);
+					// Quitar aristas si habian ifs de por medio
 					if (adj[blocks[i]].size() > 2)
 						for (int j : adj[blocks[i]])
 							if (j > blocks[s]) {
@@ -217,20 +229,31 @@ void build(int start, int end, bool inside_while) {
 				return;
 			}
 
-			int d = i;
-			while (--d >= 0 && identations[i] < identations[d])
-				continue;
-				
-			// Nos entrega la salida del if inmediatamente anterior
-			set <int> curr = adj[blocks[d]];
-			auto itr = find(curr.begin(), curr.end(), blocks[s]);
-			
-			// Si el iterador existe, borramos la arista porque hay un else
-			if (itr != curr.end())
-				curr.erase(itr);
-			
-			// Agregamos la condición del else
-			curr.insert(blocks[i+1]);
+			int d = i, iden = identations[d-1];
+			bool else_visited = false;
+			while (0 <= --d && identations[i] < identations[d]){
+				auto itr = find(adj[blocks[d]].begin(), adj[blocks[d]].end(), blocks[i+1]);
+				// No cambiar si esta dentro de while
+				if (lower_bound2(adj[blocks[d]], blocks[d]) == -1) { // cambio cosas dentro del while
+					// Revisar si existe algo que borrar
+					if (itr != adj[blocks[d]].end()) {
+						adj[blocks[d]].erase(*itr);
+						adj[blocks[d]].insert(blocks[s]);
+					}
+					// Caso de linea directamente anterior al else
+					else if (d == i-1 && !match(lines[s], "else")) {
+						// cout << blocks[s] << endl;
+						adj[blocks[d]].insert(blocks[s]);
+					}
+					// Caso else dentro del if correspondiente al else
+					else if (match(lines[d+1], "else") && !else_visited && identations[i-1] != identations[i+1]) {
+						cout << blocks[s] << endl;
+						adj[blocks[d]].insert(blocks[s]);
+						else_visited = true;
+					}
+				}
+			}
+
 			// Agregamos la conexión con lo que sigue sólo si
 			// no está dentro de un while
 			if (!inside_while)
@@ -239,6 +262,7 @@ void build(int start, int end, bool inside_while) {
 			build(i+1, s-1, inside_while);
 		}
 		else if (match(line, "while")) {
+			// Caso while
 			while (++s < line_size && identations[i] < identations[s]) {
 				if (s == line_size-1 && identations[i] < identations[s])
 					ok = 0;
@@ -254,6 +278,7 @@ void build(int start, int end, bool inside_while) {
 			// Conectamos el while con el cuerpo y la salida
 			adj[blocks[i]].insert(blocks[i+1]);
 			adj[blocks[i]].insert(blocks[s]);
+
 			// Conectamos los bloques correspondientes con el while
 			res = conectar_while(i+1, s-1, identations[i]);
 			for (int j=0; j<res.size(); j++) {
@@ -261,8 +286,8 @@ void build(int start, int end, bool inside_while) {
 				adj[res[j]].insert(blocks[i]);
 			}
 			
-			end_while = s;
 			build(i+1, s-1, true);
+			end_while = s;
 			inside_while = false;
 		}
 		else {
