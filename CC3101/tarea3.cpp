@@ -375,17 +375,19 @@ int main() {
 	visited.assign(nodos, false);
 	build(0, blocks_sz-1, false);
 
- 	// Borramos la "diagonal"
-    for (int i = 0; i < nodos; i++) 
+	// Borramos la "diagonal"
+    for (int i = 0; i < nodos; i++)
         for (int j : adj[i])
-            if (j == i)
+            if (j == i){
                 adj[i].erase(i);
+				break;
+			}
 
 	int arcos = contar_arcos();
 	// Imprime el mapa vars
 	cout << "-----MAPA-----\n";
 	for (auto itr = vars.begin(); itr != vars.end(); itr++) {
-		int key = itr->first;
+		char key = itr->first;
 		set <int> s = vars[key];
 		cout << key << ": ";
 		for (int j : s) 
