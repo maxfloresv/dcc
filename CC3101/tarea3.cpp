@@ -147,7 +147,8 @@ int contar_arcos() {
 // end: índice de fin de lectura
 // Crea las aristas del grafo
 void build(int start, int end, bool inside_while) {
-	int line_size = (int) lines.size();
+	int line_size = (int) lines.size(), end_while = -1;
+	vector <int> res;
 	// No podemos leer más líneas
 	if (start >= line_size || start > end)
 		return;
@@ -159,7 +160,6 @@ void build(int start, int end, bool inside_while) {
 		// Actualizamos s como el índice de la instrucción actual
 		s = i;
 		bool ok = 1;
-		
 		if (match(line, "if")) {
 			// i+1 es la línea siguiente al if
 			while (++s < line_size && identations[i] < identations[s]) {
@@ -172,7 +172,7 @@ void build(int start, int end, bool inside_while) {
 				continue;
 			}
 			
-			if (!ok) {
+			if (!ok && !inside_while) {
 				// Si no se pudo conectar a código, conectamos al
 				// nodo que apunta a "FIN"
 				adj[blocks[i]].insert(blocks[s-1]);
@@ -186,7 +186,8 @@ void build(int start, int end, bool inside_while) {
 			// Lo hacemos sólo si no estamos dentro de un while
 			if (!inside_while) {
 				adj[blocks[i]].insert(blocks[s]);
-				adj[blocks[i+1]].insert(blocks[s]);
+				if (!match(lines[i+1], "if"))
+					adj[blocks[i+1]].insert(blocks[s]);
 			}
 			
 			// La llamada recursiva para analizar el bloque
@@ -201,7 +202,7 @@ void build(int start, int end, bool inside_while) {
 				continue;
 			}
 			
-			if (!ok) {
+			if (!ok && !inside_while) {
 				adj[blocks[i+1]].insert(blocks[s-1]);
 				return;
 			}
@@ -217,7 +218,7 @@ void build(int start, int end, bool inside_while) {
 			// Si el iterador existe, borramos la arista porque hay un else
 			if (itr != curr.end())
 				curr.erase(itr);
-				
+			
 			// Agregamos la condición del else
 			curr.insert(blocks[i+1]);
 			// Agregamos la conexión con lo que sigue sólo si
@@ -235,7 +236,7 @@ void build(int start, int end, bool inside_while) {
 				continue;
 			}
 			
-			if (!ok) {
+			if (!ok && !inside_while) {
 				adj[blocks[i]].insert(blocks[s-1]);
 				return;
 			}
@@ -244,12 +245,13 @@ void build(int start, int end, bool inside_while) {
 			adj[blocks[i]].insert(blocks[i+1]);
 			adj[blocks[i]].insert(blocks[s]);
 			// Conectamos los bloques correspondientes con el while
-			vector <int> res = conectar_while(i+1, s-1, identations[i]);
+			res = conectar_while(i+1, s-1, identations[i]);
 			for (int j=0; j<res.size(); j++) {
 				// (res ya entrega blocks)
 				adj[res[j]].insert(blocks[i]);
 			}
 			
+			end_while = s-1;
 			build(i+1, s-1, true);
 			inside_while = false;
 		}
@@ -277,6 +279,16 @@ void build(int start, int end, bool inside_while) {
 			
 			build(i+1, s-1, inside_while);
 		}
+	}
+	// Caso quitar aristas dentro de while que van a la salida del while
+	for (int j=0; j<res.size(); j++) {
+		// Nos entrega el vector de adyacencia de cada
+		// bloque que se devuelve al while
+		set <int> curr = adj[res[j]];
+		auto itr = find(curr.begin(), curr.end(), blocks[s]);
+
+		// Si el iterador existe, borramos la arista porque no deberian ir a s (salida)
+		adj[res[j]].erase(*itr);
 	}
 }
 
@@ -361,13 +373,13 @@ int main() {
 
 	adj.resize(nodos);
 	visited.assign(nodos, false);
-	build(0, nodos-1, false);
+	build(0, blocks_sz-1, false);
 
 	// Borramos la "diagonal"
 	for (int i=0; i<nodos; i++) 
 		for (auto itr = adj[i].begin(); *itr < *adj[i].end(); itr++)
-			if (*itr == i){
-				adj[i].erase(itr);
+			if (*itr == i && adj[i].find(*itr) != adj[i].end()){
+				adj[i].erase(*itr);
 			}
 
 	int arcos = contar_arcos();
