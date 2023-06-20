@@ -200,7 +200,7 @@ void build(int start, int end, bool inside_while) {
 					
 				continue;
 			}
-				
+			
 			if (!ok) {
 				adj[blocks[i+1]].insert(blocks[s-1]);
 				return;
@@ -365,9 +365,10 @@ int main() {
 
 	// Borramos la "diagonal"
 	for (int i=0; i<nodos; i++) 
-		for (auto itr = adj[i].begin(); itr != adj[i].end(); itr++)
-			if (*itr == i && adj[i].find(i) != adj[i].end())
+		for (auto itr = adj[i].begin(); *itr < *adj[i].end(); itr++)
+			if (*itr == i){
 				adj[i].erase(itr);
+			}
 
 	int arcos = contar_arcos();
 
