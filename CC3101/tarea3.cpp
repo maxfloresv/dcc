@@ -161,7 +161,7 @@ void build(int start, int end, bool inside_while) {
 		s = i;
 		bool ok = 1;
 		if (match(line, "if")) {
-			// i+1 es la línea siguiente al if
+			// Caso if
 			while (++s < line_size && identations[i] < identations[s]) {
 				// Estoy en la última iteración posible
 				if (s == line_size-1 && identations[i] < identations[s])
@@ -180,14 +180,24 @@ void build(int start, int end, bool inside_while) {
 			}
 			
 			// Conectamos el nodo actual con el siguiente
+			// i+1 es la línea siguiente al if
 			adj[blocks[i]].insert(blocks[i+1]);
+
 			// Conectamos ambos a la salida (si encontramos un
 			// else, la borramos de adj[blocks[i]] posteriormente)
 			// Lo hacemos sólo si no estamos dentro de un while
 			if (!inside_while) {
-				adj[blocks[i]].insert(blocks[s]);
-				if (!match(lines[i+1], "if"))
-					adj[blocks[i+1]].insert(blocks[s]);
+				if (match(lines[s], "else"))
+					adj[blocks[i]].insert(blocks[s+1]);
+				else {
+					adj[blocks[i]].insert(blocks[s]);
+					if (adj[blocks[i]].size() > 2)
+						for (int j : adj[blocks[i]])
+							if (j > blocks[s]) {
+								adj[blocks[i]].erase(j);
+								break;
+							}
+				}
 			}
 			
 			// La llamada recursiva para analizar el bloque
@@ -251,7 +261,7 @@ void build(int start, int end, bool inside_while) {
 				adj[res[j]].insert(blocks[i]);
 			}
 			
-			end_while = s-1;
+			end_while = s;
 			build(i+1, s-1, true);
 			inside_while = false;
 		}
@@ -279,16 +289,30 @@ void build(int start, int end, bool inside_while) {
 			
 			build(i+1, s-1, inside_while);
 		}
-	}
-	// Caso quitar aristas dentro de while que van a la salida del while
-	for (int j=0; j<res.size(); j++) {
-		// Nos entrega el vector de adyacencia de cada
-		// bloque que se devuelve al while
-		set <int> curr = adj[res[j]];
-		auto itr = find(curr.begin(), curr.end(), blocks[s]);
+		if (end_while == i) {
+			// Caso quitar aristas dentro de while que van a la salida del while
+			// y la salida no es fin
+			for (int j=0; j<res.size(); j++) {
+				// Nos entrega el vector de adyacencia de
+				// cada bloque que se devuelve al while
+				auto itr = find(adj[res[j]].begin(), adj[res[j]].end(), blocks[i]);
 
-		// Si el iterador existe, borramos la arista porque no deberian ir a s (salida)
-		adj[res[j]].erase(*itr);
+				// Si el iterador existe, borramos la arista porque no deberian ir a s (salida)
+				adj[res[j]].erase(*itr); // no cambiar adj[res[j]] por curr, no funciona
+			}
+		}
+	}
+	if (end_while == line_size-1) {
+		// Caso quitar aristas dentro de while que van a la salida del while
+		// y la salida es el nodo fin
+		for (int j=0; j<res.size(); j++) {
+			// Nos entrega el vector de adyacencia de
+			// cada bloque que se devuelve al while
+			auto itr = find(adj[res[j]].begin(), adj[res[j]].end(), blocks[line_size-1]);
+
+			// Si el iterador existe, borramos la arista porque no deberian ir a s (salida)
+			adj[res[j]].erase(*itr); // no cambiar adj[res[j]] por curr, no funciona
+		}
 	}
 }
 
@@ -361,12 +385,12 @@ int main() {
 
 		var_detector(line, current++);
 	}
-	
+
+	// imprime linea de texto / bloque / identacion, razones de "debugging"
 	for (int i=0;i<(int)lines.size(); i++)
 		cout << "linea: " << lines[i] << " / bloque: " << blocks[i] << " / identacion: " << identations[i] << '\n';
 	
-	// TO-DO:: llamar a las funciones que generen las aristas
-	// y hacer el dfs
+	//TODO:: hacer el dfs
 	int blocks_sz = (int) blocks.size();
 	// Entrega el número de nodos y arcos
 	int nodos = blocks[blocks_sz-1];
@@ -400,7 +424,6 @@ int main() {
 		cout << i << ": ";
 		for (int j : adj[i])
 			cout << j << ' ';
-
 		cout << '\n';
 	}
 	
