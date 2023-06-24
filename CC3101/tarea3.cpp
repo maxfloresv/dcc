@@ -90,14 +90,22 @@ void dfs(int s) {
     }
 }
 
-// Devuelve un vector con los bloques que se conectan con el while padre
+// start := línea de inicio del while
+// end := última línea del while
+// tab := la tabulación del while
+// Devuelve res := un vector con los bloques que se conectan con el while padre
 vector <int> conectar_while(int start, int end, int tab) {
-	// numero de la linea donde esta cada while con identacion menor a la ultima linea
+	// whiles := Número de las líneas cuya identación sea menor a la ultima linea 
+	// del while padre.
 	vector <int> whiles, res;
-	int t = identations[end], t2 = t;
+	int t = identations[end];
+	// t2 es una copia para comparar
+	int t2 = t;
 	int i = end, j = end;
 
-	// mientras hayan tabulaciones mayores a tab (la tabulacion del while que estamos comprobando actualmente)
+	// Mientras hayan tabulaciones mayores a tab. Termina cuando llegamos
+	// a la tabulación del while padre, porque ahí se cumple t2 == tab.
+	// Marca los cambios de tabulación de abajo hacia arriba.
 	while (t2 > tab) {
 		t = identations[i];
 		if (t2 == t) {
@@ -107,39 +115,40 @@ vector <int> conectar_while(int start, int end, int tab) {
 		i--;
 	}
 
-	// encontrar el while con menor identacion
-	// si no existe el end queda igual
-	for (int i=0; i<whiles.size(); i++) {
-		if (match(lines[whiles[i]], "while")) {
-			end = whiles[i];
+	int whiles_size = (int) whiles.size();
+	// Encuentra el while con menor identación. Si no existe el end queda igual.
+	for (int k = whiles_size - 1; k >= 0; k--) {
+		// Revisamos en orden de menor a mayor identación si alguna línea donde
+		// cambia la identación empieza un while.
+		if (match(lines[whiles[k]], "while")) {
+			end = whiles[k];
 			break;
 		}
 	}
 
-	// Hallar los bloques que retornan al while padre
-	// Caso 1: No había while
+	// -- Hallar los bloques que retornan al while padre --
 	if (end == j)
-		for (int i=0; i<whiles.size(); i++)
-			res.push_back(blocks[whiles[i]]);
-
-	// Caso 2: Había while
+		// Caso 1: No había while. j siempre es código sin keywords.
+		for (int k = 0; k < whiles_size; k++)
+			res.push_back(blocks[whiles[k]]);
 	else {
-		int k = whiles.size();
-		while (whiles[k] != end) {
+		// Caso 2: Había while
+		int k = (int) whiles.size() - 1;
+		// Agrega todas las líneas que están estrictamente arriba del while
+		// sólo si tienen una identación menor
+		while (whiles[k] > end) {
 			res.push_back(blocks[whiles[k]]);
 			k--;
 		}
-		res.push_back(blocks[whiles[k]]);
 	}
 
 	//TODO Caso else
-	// cout << "------- whiles ---------" << endl;
-	// for (int i=0; i<whiles.size(); i++)
-	// 	cout << blocks[whiles[i]] << endl;
-	// cout << "------- res ---------" << endl;
-	// for (int i=0; i<res.size(); i++)
-	// 	cout << res[i] << endl;
-	
+	cout << "\n------- whiles ---------" << endl;
+	for (int i=0; i<whiles.size(); i++)
+		cout << blocks[whiles[i]] << ' ';
+	cout << "\n------- res ---------" << endl;
+	for (int i=0; i<res.size(); i++)
+		cout << res[i] << ' ';
 	
 	return res;
 }
@@ -206,7 +215,7 @@ void build(int start, int end, bool inside_while) {
 						for (int j : adj[blocks[i]]) {
 							if (j > blocks[s]) {
 								adj[blocks[i]].erase(j);
-								break;
+								//continue;
 							}
 						}
 					}
@@ -350,6 +359,8 @@ void build(int start, int end, bool inside_while) {
 				adj[res[j]].erase(*itr); // no cambiar adj[res[j]] por curr, no funciona
 			}
 		}
+		// Limpiamos el vector
+		res.clear();
 	}
 	if (end_while == line_size-1) {
 		// Caso quitar aristas dentro de while que van a la salida del while
@@ -443,6 +454,8 @@ int main() {
 	int blocks_sz = (int) blocks.size();
 	// Entrega el número de nodos y arcos
 	int nodos = blocks[blocks_sz-1];
+	// Agregamos el nodo final
+	nodos++;
 
 	adj.resize(nodos);
 	visited.assign(nodos, false);
