@@ -389,7 +389,7 @@ int main() {
 				// Si la linea anterior tiene distinta tabulacion
 				if (last_id != id_line){
 					// caso if o else previo a un if
-					if (i > 0 && !match(lines[i-1], "else") && !match(lines[i-1], "if"))
+					if (i > 0 && !match(lines[i-1], "else") && !match(lines[i-1], "if") && !match(lines[i-1], "while"))
 						indexBlocks++;
 				}
 				
@@ -402,7 +402,7 @@ int main() {
 			}
 			else if (match(line, "while")) {
 				// Si la linea anterior no tiene condición
-				if (i > 0)
+				if (i > 0 && !match(lines[i-1], "while") && !match(lines[i-1], "else") && !match(lines[i-1], "if"))
 					indexBlocks++;
 
 				blocks.push_back(indexBlocks);
