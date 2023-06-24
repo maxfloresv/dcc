@@ -8,8 +8,8 @@ using state = pair <int, int>;
 vector <set <int>> adj;
 vector <string> lines;
 vector <int> blocks, identations;
-// Para el DFS
-vector <bool> visited;
+// Para el DFS y para las líneas visitadas
+vector <bool> visited, line_vis;
 // Mapa de variables con las líneas para revisar error
 // TO-DO: set <state>. (L, 0) indica definición y (L, 1) indica uso
 map <char, set <int>> vars; 
@@ -131,12 +131,13 @@ vector <int> conectar_while(int start, int end, int tab) {
 		// Caso 1: No había while. j siempre es código sin keywords.
 		for (int k = 0; k < whiles_size; k++)
 			res.push_back(blocks[whiles[k]]);
+
 	else {
 		// Caso 2: Había while
 		int k = (int) whiles.size() - 1;
 		// Agrega todas las líneas que están estrictamente arriba del while
 		// sólo si tienen una identación menor
-		while (whiles[k] > end) {
+		while (whiles[k] >= end) {
 			res.push_back(blocks[whiles[k]]);
 			k--;
 		}
@@ -156,7 +157,7 @@ vector <int> conectar_while(int start, int end, int tab) {
 int contar_arcos() {
 	int adj_sz = (int) adj.size();
 	int ans = 0;
-	for (int i=0; i<adj_sz; i++)
+	for (int i = 0; i < adj_sz; i++)
 		ans += adj[i].size();
 	
 	return ans;
@@ -173,7 +174,8 @@ void build(int start, int end, bool inside_while) {
 		return;
 	
 	int s = start;
-	for (int i=start; i<end; i++) {
+	for (int i=start; i<end && !line_vis[i]; i++) {
+		line_vis[i] = true;
 		// Array de la línea actual
 		string line = lines[i];
 		// Actualizamos s como el índice de la instrucción actual
@@ -208,17 +210,14 @@ void build(int start, int end, bool inside_while) {
 			if (!inside_while) {
 				if (match(lines[s], "else"))
 					adj[blocks[i]].insert(blocks[s+1]);
+
 				else {
 					adj[blocks[i]].insert(blocks[s]);
 					// Quitar aristas si habian ifs de por medio
-					if (adj[blocks[i]].size() > 2) {
-						for (int j : adj[blocks[i]]) {
-							if (j > blocks[s]) {
+					if (adj[blocks[i]].size() > 2)
+						for (int j : adj[blocks[i]])
+							if (j > blocks[s])
 								adj[blocks[i]].erase(j);
-								//continue;
-							}
-						}
-					}
 				}
 			}
 			
@@ -359,8 +358,6 @@ void build(int start, int end, bool inside_while) {
 				adj[res[j]].erase(*itr); // no cambiar adj[res[j]] por curr, no funciona
 			}
 		}
-		// Limpiamos el vector
-		res.clear();
 	}
 	if (end_while == line_size-1) {
 		// Caso quitar aristas dentro de while que van a la salida del while
@@ -397,7 +394,7 @@ int main() {
 			
 			// Revisa si la línea actual empieza con una instrucción
 			if (match(line, "if")) {
-				// Si la linea anterior tiene distinta tabulacion
+				// Si la linea anterior tiene distinta tabulación
 				if (last_id != id_line){
 					// caso if o else previo a un if
 					if (i > 0 && !match(lines[i-1], "else") && !match(lines[i-1], "if") && !match(lines[i-1], "while"))
@@ -445,6 +442,9 @@ int main() {
 
 		var_detector(line, current++);
 	}
+
+	// Asignamos todas las líneas a no-visitadas
+	line_vis.assign((int) lines.size(), false);
 
 	// imprime linea de texto / bloque / identacion, razones de "debugging"
 	for (int i=0;i<(int)lines.size(); i++)
