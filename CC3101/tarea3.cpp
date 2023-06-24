@@ -13,6 +13,8 @@ vector <bool> visited, line_vis;
 // Mapa de variables con las líneas para revisar error
 // TO-DO: set <state>. (L, 0) indica definición y (L, 1) indica uso
 map <char, set <int>> vars; 
+// Almacena la información de cada while
+map <state, vector <int>> node_to_while;
 
 // Encontrar el lower bound (estrictamente menor) del set s
 int get_lower_bound(set <int> s, int bound) {
@@ -137,19 +139,19 @@ vector <int> conectar_while(int start, int end, int tab) {
 		int k = (int) whiles.size() - 1;
 		// Agrega todas las líneas que están estrictamente arriba del while
 		// sólo si tienen una identación menor
-		while (whiles[k] >= end) {
+		while (whiles[k] <= end) {
 			res.push_back(blocks[whiles[k]]);
 			k--;
 		}
 	}
 
 	//TODO Caso else
-	cout << "\n------- whiles ---------" << endl;
-	for (int i=0; i<whiles.size(); i++)
-		cout << blocks[whiles[i]] << ' ';
-	cout << "\n------- res ---------" << endl;
-	for (int i=0; i<res.size(); i++)
-		cout << res[i] << ' ';
+	// cout << "\n------- whiles ---------" << endl;
+	// for (int i=0; i<whiles.size(); i++)
+	// 	cout << blocks[whiles[i]] << ' ';
+	// cout << "\n------- res ---------" << endl;
+	// for (int i=0; i<res.size(); i++)
+	// 	cout << res[i] << ' ';
 	
 	return res;
 }
@@ -174,7 +176,7 @@ void build(int start, int end, bool inside_while) {
 		return;
 	
 	int s = start;
-	for (int i=start; i<end && !line_vis[i]; i++) {
+	for (int i = start; i < end; i++) {
 		line_vis[i] = true;
 		// Array de la línea actual
 		string line = lines[i];
@@ -225,6 +227,7 @@ void build(int start, int end, bool inside_while) {
 			// que está entremedio
 			build(i+1, s-1, inside_while);
 		}
+
 		else if (match(line, "else")) {
 			while (++s < line_size && identations[i] < identations[s]) {
 				if (s == line_size-1)
@@ -290,6 +293,7 @@ void build(int start, int end, bool inside_while) {
 			
 			build(i+1, s-1, inside_while);
 		}
+
 		else if (match(line, "while")) {
 			// Caso while
 			while (++s < line_size && identations[i] < identations[s]) {
@@ -310,6 +314,9 @@ void build(int start, int end, bool inside_while) {
 
 			// Conectamos los bloques correspondientes con el while
 			res = conectar_while(i+1, s-1, identations[i]);
+			// Asociamos el bloque del while con su vector res
+			node_to_while[{blocks[i], s}] = res;
+
 			for (int j=0; j<res.size(); j++) {
 				// (res ya entrega blocks)
 				adj[res[j]].insert(blocks[i]);
@@ -319,6 +326,7 @@ void build(int start, int end, bool inside_while) {
 			end_while = s;
 			inside_while = false;
 		}
+
 		else {
 			// Caso de código sin keywords
 			while (++s < line_size && identations[i] < identations[s]) {
@@ -345,30 +353,6 @@ void build(int start, int end, bool inside_while) {
 			}
 			
 			build(i+1, s-1, inside_while);
-		}
-		if (end_while == i) {
-			// Caso quitar aristas dentro de while que van a la salida del while
-			// y la salida no es fin
-			for (int j=0; j<res.size(); j++) {
-				// Nos entrega el vector de adyacencia de
-				// cada bloque que se devuelve al while
-				auto itr = find(adj[res[j]].begin(), adj[res[j]].end(), blocks[i]);
-
-				// Si el iterador existe, borramos la arista porque no deberian ir a s (salida)
-				adj[res[j]].erase(*itr); // no cambiar adj[res[j]] por curr, no funciona
-			}
-		}
-	}
-	if (end_while == line_size-1) {
-		// Caso quitar aristas dentro de while que van a la salida del while
-		// y la salida es el nodo fin
-		for (int j=0; j<res.size(); j++) {
-			// Nos entrega el vector de adyacencia de
-			// cada bloque que se devuelve al while
-			auto itr = find(adj[res[j]].begin(), adj[res[j]].end(), blocks[line_size-1]);
-
-			// Si el iterador existe, borramos la arista porque no deberian ir a s (salida)
-			adj[res[j]].erase(*itr); // no cambiar adj[res[j]] por curr, no funciona
 		}
 	}
 }
@@ -461,10 +445,28 @@ int main() {
 	visited.assign(nodos, false);
 	build(0, blocks_sz-1, false);
 
+	for (auto itr = node_to_while.begin(); itr != node_to_while.end(); itr++) {
+		state key = itr->first;
+		auto [block, out] = key;
+
+		for (int v : node_to_while[key]) {
+			// Nos entrega el vector de adyacencia de cada bloque que se devuelve al while
+			auto ady = find(adj[v].begin(), adj[v].end(), blocks[out]);
+
+			// Si el iterador existe, borramos la arista porque no deberian ir a s (salida)
+			if (ady != adj[v].end())
+				adj[v].erase(*ady);
+
+			// Inserta las aristas que falta que se devuelvan al while padre
+			adj[v].insert(block);
+		}
+		cout << '\n';
+	}
+
 	// Borramos la "diagonal"
     for (int i = 0; i < nodos; i++)
         for (int j : adj[i])
-            if (j == i){
+            if (j == i) {
                 adj[i].erase(i);
 				break;
 			}
