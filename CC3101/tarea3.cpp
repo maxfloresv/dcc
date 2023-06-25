@@ -19,6 +19,9 @@ map <int, vector <char>> block_vars;
 // Almacena la información de cada while
 map <state, vector <int>> node_to_while;
 
+// ultima
+map <int, vector <int>> info_var;
+
 // Encontrar el lower bound (estrictamente menor) del set s
 int get_lower_bound(set <int> s, int bound) {
 	int m = -1;
@@ -63,13 +66,13 @@ void var_detector(string s, int line) {
 		return;
 
 	if (!is_valid_char(s[1])) {
-		block_vars[blocks[line]].push_back(s[0]);
+		//block_vars[blocks[line]].push_back(s[0]);
 		if (s[2] == '=')
 			// Caso: x = 1, y = 2, ...
-			vars[s[0]].insert({blocks[line], 0});
+			info_var[blocks[line]][s[0]-'a'] = 0;
 		else
 			// Caso: x -= 2, x *= 3, etc.
-			vars[s[0]].insert({blocks[line], 1});
+			info_var[blocks[line]][s[0]-'a'] = 1;
 	}
 
 	for (int i=1; i<size-1; i++) {
@@ -78,15 +81,15 @@ void var_detector(string s, int line) {
 			continue;
 
 		if (!is_valid_char(s[i-1]) && !is_valid_char(s[i+1])) {
-			block_vars[blocks[line]].push_back(s[i]);
-			vars[s[i]].insert({blocks[line], 1});
+			//block_vars[blocks[line]].push_back(s[i]);
+			info_var[blocks[line]][s[i]-'a'] = 1;
 		}
 	}
 
 	int last = size-1;
 	if (is_valid_char(s[last])) {
-		block_vars[blocks[line]].push_back(s[last]);
-		vars[s[last]].insert({blocks[line], 1}); 
+		//block_vars[blocks[line]].push_back(s[last]);
+		info_var[blocks[line]][s[last]-'a'] = 1; 
 	}
 }
 
@@ -104,7 +107,7 @@ void dfs(int u, vector <bool> &defined) {
 					if (v == block && status == 0)
 						defined[pos] = true;
 			}
-			
+
 			dfs(v, defined);
 		}
 	}
@@ -459,6 +462,9 @@ int main() {
 	visited.assign(nodos, false);
 	build(0, bloques, false);
 
+	for (int i = 0; i < nodos; i++)
+		info_var[nodos] = vector <int> (26, -1);
+
 	// Usar los elementos de whiles para arreglar las aristas de nodos dentro del while
 	for (auto itr = node_to_while.begin(); itr != node_to_while.end(); itr++) {
 		state key = itr->first;
@@ -477,6 +483,14 @@ int main() {
 			adj[v].insert(block);
 		}
 	}
+
+	// Borramos la "diagonal" de la lista de adyacencia
+	for (int i = 0; i < nodos; i++)
+		for (int j : adj[i])
+			if (j == i) {
+				adj[i].erase(i);
+				break;
+			}
 
 	// Revisar que ningún elemento dentro del while esté dirigido afuera del while
 	int line_size = (int) lines.size();
@@ -510,20 +524,28 @@ int main() {
 			auto itr = adj[blocks[i]].end();
 			// Añadimos el invariante. Un if tiene a lo más 2 salidas.
 			// NO CAMBIAR POR UN > 2. PUEDE PARECER LÓGICO PERO TRAE PROBLEMAS.
-			while (adj[blocks[i]].size() > 3) {
+			int copy = adj[blocks[i]].size();
+			while (copy-- > 2) {
 				itr--;
 				adj[blocks[i]].erase(itr);
 			}
 		}
-	}
 
-	// Borramos la "diagonal" de la lista de adyacencia
-	for (int i = 0; i < nodos; i++)
-		for (int j : adj[i])
-			if (j == i) {
-				adj[i].erase(i);
-				break;
+		// Invariante del else
+        else if (match(lines[i], "else")) {
+            int s = i;
+            // Hallar el if correspondiente a este else
+			while (--s > 0 && identations[i] < identations[s])
+				continue;
+
+			adj[blocks[s]].insert(blocks[i]);
+			// Si el if quedó con 3 aristas eliminar la mayor
+			if (adj[blocks[i]].size() > 2) {
+				auto itr = adj[blocks[i]].end();
+				adj[blocks[i]].erase(--itr);
 			}
+		}
+	}
 
 	int arcos = 0;
 	for (int i = 0; i < nodos; i++)
