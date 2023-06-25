@@ -73,23 +73,23 @@ void var_detector(string s, int line) {
 }
 
 void dfs(int s) {
-    stack <int> pila;                  
-    pila.push(s);
+	stack <int> pila;
+	pila.push(s);
 
-    while (!pila.empty()) {
-        int u = pila.top();
-        pila.pop();
-        
-        visited[u] = true;
+	while (!pila.empty()) {
+		int u = pila.top();
+		pila.pop();
 
-        for (int v: adj[u]) {
-            if (!visited[v]) {
+		visited[u] = true;
+
+		for (int v: adj[u]) {
+			if (!visited[v]) {
 				// TO-DO: agregar dfs modificado
 				visited[v] = true;
 				pila.push(v);
-            }
-        }
-    }
+			}
+		}
+	}
 }
 
 // start := línea de inicio del while
@@ -155,15 +155,6 @@ vector <int> conectar_while(int start, int end, int tab) {
 	return res;
 }
 
-int contar_arcos() {
-	int adj_sz = (int) adj.size();
-	int ans = 0;
-	for (int i = 0; i < adj_sz; i++)
-		ans += adj[i].size();
-	
-	return ans;
-}
-
 // start: índice de inicio de lectura
 // end: índice de fin de lectura
 // Crea las aristas del grafo
@@ -223,8 +214,7 @@ void build(int start, int end, bool inside_while) {
 				}
 			}
 			
-			// La llamada recursiva para analizar el bloque
-			// que está entremedio
+			// La llamada recursiva para analizar el bloque que está entremedio
 			build(i+1, s-1, inside_while);
 		}
 
@@ -372,6 +362,10 @@ int main() {
 		// Procesamos el archivo y los bloques
 		int i = 0, indexBlocks = 0, last_id = -1;
 		while (getline(file, line)) {
+			// Si la línea no tiene nada, no nos importa procesarla
+			if (line.empty())
+				continue;
+
 			// Primero vemos las identaciones
 			int id_line = indentation(line);
 			// Las agregamos a un vector
@@ -384,7 +378,7 @@ int main() {
 			// Revisa si la línea actual empieza con una instrucción
 			if (match(line, "if")) {
 				// Si la linea anterior tiene distinta tabulación
-				if (last_id != id_line){
+				if (last_id != id_line) {
 					// caso if o else previo a un if
 					if (i > 0 && !match(lines[i-1], "else") && !match(lines[i-1], "if") && !match(lines[i-1], "while"))
 						indexBlocks++;
@@ -393,10 +387,12 @@ int main() {
 				blocks.push_back(indexBlocks);
 				indexBlocks++;
 			}
+
 			else if (match(line, "else")) {
 				indexBlocks++;
 				blocks.push_back(indexBlocks);
 			}
+
 			else if (match(line, "while")) {
 				// Si la linea anterior no tiene condición
 				if (i > 0 && !match(lines[i-1], "while") && !match(lines[i-1], "else") && !match(lines[i-1], "if"))
@@ -405,11 +401,14 @@ int main() {
 				blocks.push_back(indexBlocks);
 				indexBlocks++;
 			}
+
 			else {
 				if (last_id > id_line)
 					indexBlocks++;
+
 				blocks.push_back(indexBlocks);
 			}
+
 			i++;
 			last_id = id_line;
 		}
@@ -422,8 +421,7 @@ int main() {
 		identations.push_back(0);
 	}
 
-	// Corremos el detector de variables. Notemos que las líneas
-	// están 0-indexadas
+	// Corremos el detector de variables. Las líneas están 0-indexadas
 	int current = 0;
 	for (string line : lines) {
 		if (line == "FIN")
@@ -431,21 +429,17 @@ int main() {
 
 		var_detector(line, current++);
 	}
-
-	// imprime linea de texto / bloque / identacion, razones de "debugging"
-	for (int i=0;i<(int)lines.size(); i++)
-		cout << "linea: " << lines[i] << " / bloque: " << blocks[i] << " / identacion: " << identations[i] << '\n';
 	
-	//TODO:: hacer el dfs
-	int blocks_sz = (int) blocks.size();
-	// Entrega el número de nodos y arcos
-	int nodos = blocks[blocks_sz-1];
-	// Agregamos el nodo final
+	// Entregamos el último índice del vector blocks
+	int bloques = (int) blocks.size();
+	bloques--;
+	// Entrega el número de nodos y agregamos el nodo "FIN"
+	int nodos = blocks[bloques];
 	nodos++;
 
 	adj.resize(nodos);
 	visited.assign(nodos, false);
-	build(0, blocks_sz-1, false);
+	build(0, bloques, false);
 
 	// Usar los elementos de whiles para arreglar las aristas de nodos dentro del while
 	for (auto itr = node_to_while.begin(); itr != node_to_while.end(); itr++) {
@@ -470,7 +464,6 @@ int main() {
 	int line_size = (int) lines.size();
 	// Recorrer las lineas
 	for (int i = 0; i < line_size; i++) {
-
 		// Invariante del while
 		if (match(lines[i], "while")) {
 			int j = i, s = i;
@@ -485,6 +478,7 @@ int main() {
 				for (int k : adj[blocks[j]])
 					if (blocks[s] <= k)
 						a++;
+
 				// Borrar aristas correspondientes (sets son ordenados)
 				for (int k = 0; k < a; k++) {
 					auto last = adj[blocks[j]].end();
@@ -498,14 +492,15 @@ int main() {
 
 			auto itr = adj[blocks[i]].end();
 			// Añadimos el invariante. Un if tiene a lo más 2 salidas.
-			while (adj[blocks[i]].size() > 2) {
+			// NO CAMBIAR POR UN > 2. PUEDE PARECER LÓGICO PERO TRAE PROBLEMAS.
+			while (adj[blocks[i]].size() > 3) {
 				itr--;
 				adj[blocks[i]].erase(itr);
 			}
 		}
 	}
 
-	// Borramos la "diagonal"
+	// Borramos la "diagonal" de la lista de adyacencia
     for (int i = 0; i < nodos; i++)
         for (int j : adj[i])
             if (j == i) {
@@ -513,7 +508,14 @@ int main() {
 				break;
 			}
 
-	int arcos = contar_arcos();
+	int arcos = 0;
+	for (int i = 0; i < nodos; i++)
+		arcos += (int) adj[i].size();
+
+	// imprime linea de texto / bloque / identacion, razones de "debugging"
+	for (int i=0;i<(int)lines.size(); i++)
+		cout << "linea: " << lines[i] << " / bloque: " << blocks[i] << " / identacion: " << identations[i] << '\n';		
+
 	// Imprime el mapa vars
 	cout << "-----MAPA-----\n";
 	for (auto itr = vars.begin(); itr != vars.end(); itr++) {
