@@ -491,7 +491,7 @@ int main() {
 
 			auto itr = adj[blocks[i]].end();
 			// Añadimos el invariante. Un if tiene a lo más 2 salidas.
-			while (adj[blocks[i]].size() > 2) {
+			while (adj[blocks[i]].size() > 3) {
 				itr--;
 				adj[blocks[i]].erase(itr);
 			}
