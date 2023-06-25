@@ -12,7 +12,10 @@ vector <int> blocks, identations;
 vector <bool> visited;
 // Mapa de variables con las líneas para revisar error
 // TO-DO: set <state>. (L, 0) indica definición y (L, 1) indica uso
-map <char, set <int>> vars; 
+map <char, set <state>> vars; 
+// Tiene los bloques donde las variables están indefinidas
+map <char, vector <int>> undefined_vars;
+map <int, vector <char>> block_vars;
 // Almacena la información de cada while
 map <state, vector <int>> node_to_while;
 
@@ -59,35 +62,50 @@ void var_detector(string s, int line) {
 	if (size == 1)
 		return;
 
-	if (!is_valid_char(s[1]))
-		vars[s[0]].insert(blocks[line]);
+	if (!is_valid_char(s[1])) {
+		block_vars[blocks[line]].push_back(s[0]);
+		if (s[2] == '=')
+			// Caso: x = 1, y = 2, ...
+			vars[s[0]].insert({blocks[line], 0});
+		else
+			// Caso: x -= 2, x *= 3, etc.
+			vars[s[0]].insert({blocks[line], 1});
+	}
 
 	for (int i=1; i<size-1; i++) {
 		// El caso s[i+1] == '(' es porque es función. Ej: f(x, y)
 		if (!is_valid_char(s[i]) || s[i+1] == '(')
 			continue;
 
-		if (!is_valid_char(s[i-1]) && !is_valid_char(s[i+1]))
-			vars[s[i]].insert(blocks[line]);
+		if (!is_valid_char(s[i-1]) && !is_valid_char(s[i+1])) {
+			block_vars[blocks[line]].push_back(s[i]);
+			vars[s[i]].insert({blocks[line], 1});
+		}
+	}
+
+	int last = size-1;
+	if (is_valid_char(s[last])) {
+		block_vars[blocks[line]].push_back(s[last]);
+		vars[s[last]].insert({blocks[line], 1}); 
 	}
 }
 
-void dfs(int s) {
-	stack <int> pila;
-	pila.push(s);
 
-	while (!pila.empty()) {
-		int u = pila.top();
-		pila.pop();
+void dfs(int u, vector <bool> &defined) {
+	visited[u] = 1;
 
-		visited[u] = true;
-
-		for (int v: adj[u]) {
-			if (!visited[v]) {
-				// TO-DO: agregar dfs modificado
-				visited[v] = true;
-				pila.push(v);
+	for (int v : adj[u]) {
+		// Reiniciamos el estado de cada variable
+		if (!visited[v]) {
+			for (char var : block_vars[v]) {
+				int pos = var - 'a';
+				// Accedemos a la información de la variable
+				for (auto [block, status] : vars[var])
+					if (v == block && status == 0)
+						defined[pos] = true;
 			}
+			
+			dfs(v, defined);
 		}
 	}
 }
@@ -462,7 +480,6 @@ int main() {
 
 	// Revisar que ningún elemento dentro del while esté dirigido afuera del while
 	int line_size = (int) lines.size();
-	// Recorrer las lineas
 	for (int i = 0; i < line_size; i++) {
 		// Invariante del while
 		if (match(lines[i], "while")) {
@@ -501,40 +518,41 @@ int main() {
 	}
 
 	// Borramos la "diagonal" de la lista de adyacencia
-    for (int i = 0; i < nodos; i++)
-        for (int j : adj[i])
-            if (j == i) {
-                adj[i].erase(i);
+	for (int i = 0; i < nodos; i++)
+		for (int j : adj[i])
+			if (j == i) {
+				adj[i].erase(i);
 				break;
 			}
 
 	int arcos = 0;
 	for (int i = 0; i < nodos; i++)
 		arcos += (int) adj[i].size();
-
+	
 	// imprime linea de texto / bloque / identacion, razones de "debugging"
+	cout << "-----INFO DEL CFG-----\n";
 	for (int i=0;i<(int)lines.size(); i++)
-		cout << "linea: " << lines[i] << " / bloque: " << blocks[i] << " / identacion: " << identations[i] << '\n';		
+		cout << "L: " << lines[i] << " / B: " << blocks[i] << " / I: " << identations[i] << '\n';		
 
 	// Imprime el mapa vars
-	cout << "-----MAPA-----\n";
+	cout << "-----MAPA DE VARIABLES-----\n";
 	for (auto itr = vars.begin(); itr != vars.end(); itr++) {
 		char key = itr->first;
-		set <int> s = vars[key];
+		set <state> s = vars[key];
 		cout << key << ": ";
-		for (int j : s) 
-			cout << j << ' ';
+		for (auto [block, status] : s) 
+			cout << '(' << block << ' ' << status << ") ";
 		cout << '\n';
 	}
 	
-	cout << "-----LISTA DE ADYACENCIA-----\n";
+	cout << "-----ARISTAS-----\n";
 	for (int i = 0; i < nodos; i++) {
 		cout << i << ": ";
 		for (int j : adj[i])
 			cout << j << ' ';
 		cout << '\n';
 	}
-	
+
 	cout << "CFG\n";
 	cout << "Nodos: " << nodos << '\n';
 	cout << "Arcos: " << arcos << '\n';
@@ -544,7 +562,7 @@ int main() {
 	cout << "Variable: \n";
 	cout << "Camino: \n\n";
 	
-	cout << "Complejidad ciclomática\n";
+	cout << "Complejidad ciclomatica\n";
 	cout << arcos - nodos + 2 << "\n";
 	
 	return 0;
