@@ -459,7 +459,39 @@ int main() {
 			// Inserta las aristas que falta que se devuelvan al while padre
 			adj[v].insert(block);
 		}
-		cout << '\n';
+	}
+
+	// Revisar que ningún elemento dentro del while esté dirigido afuera del while
+	int line_size = (int) lines.size();
+	// Recorrer las lineas
+	for (int i = 0; i < line_size; i++) {
+
+		// Encontramos un while
+		if (match(lines[i], "while")) {
+			int j = i, s = i;
+			// Hallar la salida del while
+			while (++s < line_size && identations[i] < identations[s]) {
+				continue;
+			}
+
+			while (++j < s) {
+				// Contar cuantas aristas se pasan del scope
+				int a = 0;
+				for (int k : adj[blocks[j]])
+					if (s <= k)
+						a++;
+				// Borrar aristas correspondientes (sets son ordenados)
+				for (int k = 0; k < a; k++) {
+					auto last = adj[blocks[j]].end();
+					adj[blocks[j]].erase(--last);
+				}
+			}
+		}
+
+		else if (match(lines[i], "if"))
+			adj[blocks[i]].insert(blocks[i+1]);
+
+
 	}
 
 	// Borramos la "diagonal"
