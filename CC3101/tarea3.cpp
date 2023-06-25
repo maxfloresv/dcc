@@ -69,10 +69,12 @@ void var_detector(string s, int line) {
 		//block_vars[blocks[line]].push_back(s[0]);
 		if (s[2] == '=')
 			// Caso: x = 1, y = 2, ...
-			info_var[blocks[line]][s[0]-'a'] = 0;
+			return;
+			//info_var[blocks[line]][s[0]-'a'] = 0;
 		else
 			// Caso: x -= 2, x *= 3, etc.
-			info_var[blocks[line]][s[0]-'a'] = 1;
+			return;
+			//info_var[blocks[line]][s[0]-'a'] = 1;
 	}
 
 	for (int i=1; i<size-1; i++) {
@@ -82,14 +84,16 @@ void var_detector(string s, int line) {
 
 		if (!is_valid_char(s[i-1]) && !is_valid_char(s[i+1])) {
 			//block_vars[blocks[line]].push_back(s[i]);
-			info_var[blocks[line]][s[i]-'a'] = 1;
+			return;
+			// info_var[blocks[line]][s[i]-'a'] = 1;
 		}
 	}
 
 	int last = size-1;
 	if (is_valid_char(s[last])) {
 		//block_vars[blocks[line]].push_back(s[last]);
-		info_var[blocks[line]][s[last]-'a'] = 1; 
+		return;
+		// info_var[blocks[line]][s[last]-'a'] = 1; 
 	}
 }
 
@@ -463,7 +467,8 @@ int main() {
 	build(0, bloques, false);
 
 	for (int i = 0; i < nodos; i++)
-		info_var[nodos] = vector <int> (26, -1);
+		continue;
+		// info_var[nodos] = vector <int> (26, -1);
 
 	// Usar los elementos de whiles para arreglar las aristas de nodos dentro del while
 	for (auto itr = node_to_while.begin(); itr != node_to_while.end(); itr++) {
@@ -540,9 +545,12 @@ int main() {
 
 			adj[blocks[s]].insert(blocks[i]);
 			// Si el if quedó con 3 aristas eliminar la mayor
-			if (adj[blocks[i]].size() > 2) {
-				auto itr = adj[blocks[i]].end();
-				adj[blocks[i]].erase(--itr);
+			int copy = adj[blocks[s]].size();
+			auto itr = adj[blocks[s]].end();
+
+			while (copy-- > 2) {
+				itr--;
+				adj[blocks[s]].erase(itr);
 			}
 		}
 	}
