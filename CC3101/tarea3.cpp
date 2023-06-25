@@ -389,8 +389,8 @@ int main() {
 				indexBlocks++;
 			}
 			else if (match(line, "else")) {
-				blocks.push_back(indexBlocks);
 				indexBlocks++;
+				blocks.push_back(indexBlocks);
 			}
 			else if (match(line, "while")) {
 				// Si la linea anterior no tiene condición
@@ -449,11 +449,22 @@ int main() {
 		state key = itr->first;
 		auto [block, out] = key;
 
+		cout << "{" << block << ", " << out << "}: ";
 		for (int v : node_to_while[key]) {
-			// Nos entrega el vector de adyacencia de cada bloque que se devuelve al while
-			auto ady = find(adj[v].begin(), adj[v].end(), blocks[out]);
+			cout << v << ' ';
+			// Nos entrega el iterador (o .end()) que indica si algún bloque
+			// conectado al while padre está conectado a la salida de dicho while
+			int offset = 0;
+			// El else tiene el mismo bloque que la última línea del while
+			// entonces necesitamos sumar 1 al out
+			//if (match(lines[out], "else"))
+				//offset++;
 
-			// Si el iterador existe, borramos la arista porque no deberian ir a s (salida)
+			// out+offset no está fuera de rango, porque si hay un else, sí o sí
+			// debe haber código debajo.
+			auto ady = find(adj[v].begin(), adj[v].end(), blocks[out+offset]);
+
+			// Si el iterador existe, borramos la arista porque no deberían ir a out
 			if (ady != adj[v].end())
 				adj[v].erase(*ady);
 
