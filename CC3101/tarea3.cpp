@@ -9,7 +9,7 @@ vector <set <int>> adj;
 vector <string> lines;
 vector <int> blocks, identations;
 // Para el DFS y para las líneas visitadas
-vector <bool> visited, line_vis;
+vector <bool> visited;
 // Mapa de variables con las líneas para revisar error
 // TO-DO: set <state>. (L, 0) indica definición y (L, 1) indica uso
 map <char, set <int>> vars; 
@@ -110,7 +110,14 @@ vector <int> conectar_while(int start, int end, int tab) {
 	// Marca los cambios de tabulación de abajo hacia arriba.
 	while (t2 > tab) {
 		t = identations[i];
-		if (t2 == t) {
+		// Arregla el problema de la identificación de bloque de los else dentro del while
+		if (match(lines[i], "else") && get_lower_bound(adj[blocks[i-1]], blocks[i-1]) == -1) {
+			whiles.push_back(i-1);
+			t2--;
+		}
+
+		// Se ejecuta cuando encontramos la primera tabulación menor
+		else if (t2 == t) {
 			whiles.push_back(i);
 			t2--;
 		}
@@ -145,14 +152,6 @@ vector <int> conectar_while(int start, int end, int tab) {
 		}
 	}
 
-	//TODO Caso else
-	// cout << "\n------- whiles ---------" << endl;
-	// for (int i=0; i<whiles.size(); i++)
-	// 	cout << blocks[whiles[i]] << ' ';
-	// cout << "\n------- res ---------" << endl;
-	// for (int i=0; i<res.size(); i++)
-	// 	cout << res[i] << ' ';
-	
 	return res;
 }
 
@@ -177,7 +176,6 @@ void build(int start, int end, bool inside_while) {
 	
 	int s = start;
 	for (int i = start; i < end; i++) {
-		line_vis[i] = true;
 		// Array de la línea actual
 		string line = lines[i];
 		// Actualizamos s como el índice de la instrucción actual
@@ -210,11 +208,8 @@ void build(int start, int end, bool inside_while) {
 			// else, la borramos de adj[blocks[i]] posteriormente)
 			// Lo ejecutamos sólo si no estamos dentro de un while
 			if (!inside_while) {
-				if (match(lines[s], "else"))
-					adj[blocks[i]].insert(blocks[s+1]);
-
-				else {
-					adj[blocks[i]].insert(blocks[s]);
+				adj[blocks[i]].insert(blocks[s]);
+				if (!match(lines[s], "else")) {
 					// Quitar aristas si habian ifs de por medio
 					if (adj[blocks[i]].size() > 2)
 						for (int j : adj[blocks[i]])
@@ -243,15 +238,17 @@ void build(int start, int end, bool inside_while) {
 
 			int d = i, iden = identations[d-1];
 			bool else_visited = false, in_while = false;
-			while (0 <= --d && identations[i] < identations[d]){
+			while (0 <= --d && identations[i] < identations[d]) {
 				auto prev_itr = find(adj[blocks[d]].begin(), adj[blocks[d]].end(), blocks[i-1]);
 				auto itr = find(adj[blocks[d]].begin(), adj[blocks[d]].end(), blocks[i+1]);
 				// Si se encontro el while cambiar variable a false
 				if (match(lines[d], "while"))
 					in_while = false;
+
 				// Resetear variable cuando terminamos de usarla
 				else if (match(lines[d], "if"))
 					else_visited = false;
+
 				// Cambiar estado de variable cuando corresponde
 				else if (match(lines[d], "else"))
 					else_visited = true;
@@ -260,17 +257,19 @@ void build(int start, int end, bool inside_while) {
 				if (get_lower_bound(adj[blocks[d]], blocks[d]) != -1)
 					in_while = true;
 
-				// No cambiar si esta dentro de while
-				if (!in_while && !match(lines[d], "else")) {
+				// Cambiar solo si no estoy dentro de while o la línea siguiente es un else
+				if (!in_while || match(lines[d+1], "else")) {
 					// Caso se conectan a linea anterior al else
 					if (prev_itr != adj[blocks[d]].end()) {
-						if (!match(lines[d], "if") && !match(lines[d], "else") && !match(lines[d], "while") && adj[blocks[d]].size() < 2) {
+						if (!match(lines[d], "if") && !match(lines[d], "else") && !match(lines[d], "while")) {
 							adj[blocks[d]].erase(*prev_itr);
 							adj[blocks[d]].insert(blocks[s]);
 						}
-						else if (match(lines[d], "if") && adj[blocks[d]].size() > 2)
+
+						else if (match(lines[d], "if") && adj[blocks[d]].size() > 2) {
 							adj[blocks[d]].erase(*prev_itr);
 							adj[blocks[d]].insert(blocks[d+1]);
+						}
 					}
 
 					// Revisar si existe algo que borrar
@@ -317,10 +316,8 @@ void build(int start, int end, bool inside_while) {
 			// Asociamos el bloque del while con su vector res
 			node_to_while[{blocks[i], s}] = res;
 
-			for (int j=0; j<res.size(); j++) {
-				// (res ya entrega blocks)
+			for (int j = 0; j < (int) res.size(); j++)
 				adj[res[j]].insert(blocks[i]);
-			}
 			
 			build(i+1, s-1, true);
 			end_while = s;
@@ -328,7 +325,8 @@ void build(int start, int end, bool inside_while) {
 		}
 
 		else {
-			// Caso de código sin keywords
+			// Caso de código sin keywords. Tiene que ser <= porque no
+			// necesariamente hay sólo una línea de código sin keywords.
 			while (++s < line_size && identations[i] < identations[s]) {
 				if (s == line_size-1)
 					ok = 0;
@@ -344,13 +342,9 @@ void build(int start, int end, bool inside_while) {
 			// Tengo que conectar con el nodo "FIN"
 			if (s == line_size && !inside_while)
 				adj[blocks[i]].insert(blocks[i+1]);
-			else if (!inside_while) {
-				// Sino, sigue habiendo código y conecto con la salida
-				if (match(lines[s], "else"))
-					adj[blocks[i]].insert(blocks[s+1]);
-				else
-					adj[blocks[i]].insert(blocks[s]);
-			}
+
+			else if (!inside_while) 
+				adj[blocks[i]].insert(blocks[s]);
 			
 			build(i+1, s-1, inside_while);
 		}
@@ -427,9 +421,6 @@ int main() {
 		var_detector(line, current++);
 	}
 
-	// Asignamos todas las líneas a no-visitadas
-	line_vis.assign((int) lines.size(), false);
-
 	// imprime linea de texto / bloque / identacion, razones de "debugging"
 	for (int i=0;i<(int)lines.size(); i++)
 		cout << "linea: " << lines[i] << " / bloque: " << blocks[i] << " / identacion: " << identations[i] << '\n';
@@ -454,15 +445,7 @@ int main() {
 			cout << v << ' ';
 			// Nos entrega el iterador (o .end()) que indica si algún bloque
 			// conectado al while padre está conectado a la salida de dicho while
-			int offset = 0;
-			// El else tiene el mismo bloque que la última línea del while
-			// entonces necesitamos sumar 1 al out
-			//if (match(lines[out], "else"))
-				//offset++;
-
-			// out+offset no está fuera de rango, porque si hay un else, sí o sí
-			// debe haber código debajo.
-			auto ady = find(adj[v].begin(), adj[v].end(), blocks[out+offset]);
+			auto ady = find(adj[v].begin(), adj[v].end(), blocks[out]);
 
 			// Si el iterador existe, borramos la arista porque no deberían ir a out
 			if (ady != adj[v].end())
