@@ -488,10 +488,16 @@ int main() {
 			}
 		}
 
-		else if (match(lines[i], "if"))
+		else if (match(lines[i], "if")) {
 			adj[blocks[i]].insert(blocks[i+1]);
 
-
+			auto itr = adj[blocks[i]].end();
+			// Añadimos el invariante. Un if tiene a lo más 2 salidas.
+			while (adj[blocks[i]].size() > 3) {
+				itr--;
+				adj[blocks[i]].erase(itr);
+			}
+		}
 	}
 
 	// Borramos la "diagonal"
