@@ -307,6 +307,12 @@ void build(int start, int end, bool inside_while) {
 				return;
 			}
 
+			// Linea sin keywords antes de while solo puede conectarse al while (si tienen misma identacion)
+			if (i > 0 && !match(lines[i-1], "if") && !match(lines[i-1], "while") && adj[blocks[i-1]].size() > 1 && identations[i] == identations[i-1]) {
+				auto last = adj[blocks[i-1]].end();
+				adj[blocks[i-1]].erase(--last);
+			}
+
 			// Conectamos el while con el cuerpo y la salida
 			adj[blocks[i]].insert(blocks[i+1]);
 			adj[blocks[i]].insert(blocks[s]);
@@ -436,13 +442,12 @@ int main() {
 	visited.assign(nodos, false);
 	build(0, blocks_sz-1, false);
 
+	// Usar los elementos de whiles para arreglar las aristas de nodos dentro del while
 	for (auto itr = node_to_while.begin(); itr != node_to_while.end(); itr++) {
 		state key = itr->first;
 		auto [block, out] = key;
 
-		cout << "{" << block << ", " << out << "}: ";
 		for (int v : node_to_while[key]) {
-			cout << v << ' ';
 			// Nos entrega el iterador (o .end()) que indica si algún bloque
 			// conectado al while padre está conectado a la salida de dicho while
 			auto ady = find(adj[v].begin(), adj[v].end(), blocks[out]);
@@ -454,7 +459,37 @@ int main() {
 			// Inserta las aristas que falta que se devuelvan al while padre
 			adj[v].insert(block);
 		}
-		cout << '\n';
+	}
+
+	// Revisar que ningún elemento dentro del while esté dirigido afuera del while
+	int line_size = (int) lines.size();
+	// Recorrer las lineas
+	for (int i = 0; i < line_size; i++) {
+		int j = i, s = i;
+
+		// Encontramos un while
+		if (match(lines[i], "while")) {
+			// Hallar la salida del while
+			while (++s < line_size && identations[i] < identations[s]) {
+				continue;
+			}
+
+			while (++j < s) {
+				// Contar cuantas aristas se pasan del scope
+				int a = 0;
+				for (int k : adj[blocks[j]])
+					if (s <= k)
+						a++;
+				// Borrar aristas correspondientes (sets son ordenados)
+				for (int k = 0; k < a; k++) {
+					auto last = adj[blocks[j]].end();
+					adj[blocks[j]].erase(--last);
+				}
+			}
+		}
+
+		else if (match(lines[i], "if"))
+			adj[blocks[j]].insert(blocks[j+1]);
 	}
 
 	// Borramos la "diagonal"
