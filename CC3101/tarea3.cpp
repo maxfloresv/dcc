@@ -173,7 +173,6 @@ void build(int start, int end, bool inside_while) {
 	// No podemos leer más líneas
 	if (start >= line_size || start > end)
 		return;
-	
 	int s = start;
 	for (int i = start; i < end; i++) {
 		// Array de la línea actual
@@ -210,11 +209,17 @@ void build(int start, int end, bool inside_while) {
 			if (!inside_while) {
 				adj[blocks[i]].insert(blocks[s]);
 				if (!match(lines[s], "else")) {
+					int a = 0;
 					// Quitar aristas si habian ifs de por medio
-					if (adj[blocks[i]].size() > 2)
-						for (int j : adj[blocks[i]])
-							if (j > blocks[s])
-								adj[blocks[i]].erase(j);
+					for (int j : adj[blocks[i]])
+						// Contar aristas mayores
+						if (j > blocks[s])
+							a++;
+					for (int k = 0; k < a; k++) {
+						// Eliminar aristas mayores
+						auto itr = adj[blocks[i]].end();
+						adj[blocks[i]].erase(--itr);
+					}
 				}
 			}
 			
@@ -307,7 +312,7 @@ void build(int start, int end, bool inside_while) {
 				return;
 			}
 
-			// Linea sin keywords antes de while solo puede conectarse al while (si tienen misma identacion)
+			// Invariante linea sin keywords antes de while solo puede conectarse al while (si tienen misma identacion)
 			if (i > 0 && !match(lines[i-1], "if") && !match(lines[i-1], "while") && adj[blocks[i-1]].size() > 1 && identations[i] == identations[i-1]) {
 				auto last = adj[blocks[i-1]].end();
 				adj[blocks[i-1]].erase(--last);
@@ -466,7 +471,7 @@ int main() {
 	// Recorrer las lineas
 	for (int i = 0; i < line_size; i++) {
 
-		// Encontramos un while
+		// Invariante del while
 		if (match(lines[i], "while")) {
 			int j = i, s = i;
 			// Hallar la salida del while
@@ -478,7 +483,7 @@ int main() {
 				// Contar cuantas aristas se pasan del scope
 				int a = 0;
 				for (int k : adj[blocks[j]])
-					if (s <= k)
+					if (blocks[s] <= k)
 						a++;
 				// Borrar aristas correspondientes (sets son ordenados)
 				for (int k = 0; k < a; k++) {
@@ -493,7 +498,7 @@ int main() {
 
 			auto itr = adj[blocks[i]].end();
 			// Añadimos el invariante. Un if tiene a lo más 2 salidas.
-			while (adj[blocks[i]].size() > 3) {
+			while (adj[blocks[i]].size() > 2) {
 				itr--;
 				adj[blocks[i]].erase(itr);
 			}
