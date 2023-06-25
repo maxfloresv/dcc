@@ -1,0 +1,13 @@
+while x > 3:
+	if x > y:
+		if x > 6:
+			o = 0
+		else:
+			a -= 1298
+			while x < 3:
+				t = 666
+	else:
+		if a < 2:
+			a = 1
+	a = 2
+print(a)
