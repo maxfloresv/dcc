@@ -84,6 +84,7 @@ void var_detector(string s, int line) {
 		info_var[blocks[line]][s[last]-'a'] = 1; 
 }
 
+bool check = 0;
 void dfs(int u, char var, vector <int> camino) {
 	// Si no está vacío, ya encontramos un camino erróneo
 	if (!roads[var].empty())
@@ -92,12 +93,12 @@ void dfs(int u, char var, vector <int> camino) {
 	visited[u] = 1;
 	camino.push_back(u);
 
-	bool ok = 0;
-	for (int v : adj[u]) {
-		if (!visited[v]) {
+	for (int v : inv[u]) {
+		if (!visited[v] && !check) {
 			// En este camino sí se definió la variable var
+			cout << "v: " << info_var[v][var-'a'] << '\n';
 			if (info_var[v][var-'a'] == 0) {
-				ok = 1;
+				check = 1;
 				break;
 			}
 
@@ -106,8 +107,11 @@ void dfs(int u, char var, vector <int> camino) {
 		}
 	}
 
-	if (!ok) 
+	// Si en ese camino no se definió, es un error
+	if (!check) 
 		roads[var] = camino;
+	
+	visited.clear();
 }
 
 vector <string> retrieve_road(vector <int> info_blocks) {
@@ -572,10 +576,14 @@ int main() {
 
 	// Ejecutamos el DFS para ver las variables indefinidas
 	vector <int> empty_vector;
-	for (int i = nodos-1; i >= 0; i++) 
-		for (int j = 0; j < info_var[i].size(); j++) 
-			if (info_var[i][j] == 1)
-				dfs(i, 'a'+j, empty_vector);
+	for (int i = nodos-2; i >= 0; i--) {
+		for (int j = 0; j < 26; j++) {
+			if (info_var[i][j] == 1) {
+				dfs(i, (char) ('a'+j), empty_vector);
+				check = 0;
+			}
+		}
+	}
 
 	cout << "CFG\n";
 	cout << "Nodos: " << nodos << '\n';
@@ -584,20 +592,25 @@ int main() {
 	
 	cout << "Variables indefinidas\n";
 	for (int i = 0; i < 26; i++) {
-		vector <int> camino = roads['a'+i];
+		char current = (char) ('a'+i);
+		vector <int> camino = roads[current];
 		if (!camino.empty()) {
 			cout << "Variable: ";
-			cout << 'a'+i << '\n';
+			cout << current << '\n';
 
 			cout << "Camino: ";
 			vector <string> code = retrieve_road(camino);
-			for (int j = 0; j < code.size(); j++) 
-				cout << code[j] << ", ";
+			string sep = ", ";
+			for (int j = 0; j < code.size(); j++) {
+				if (j == code.size() - 1)
+					sep = "";
+				cout << code[j] << sep;
+			}
 			cout << '\n';
 		}
 	}
 
-	cout << "Complejidad ciclomatica\n";
+	cout << "\nComplejidad ciclomatica\n";
 	cout << arcos - nodos + 2 << "\n";
 	
 	return 0;
