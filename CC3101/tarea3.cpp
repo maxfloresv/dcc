@@ -5,22 +5,17 @@
 using namespace std;
 using state = pair <int, int>;
 // Usamos un vector de sets para que no se repitan índices
-vector <set <int>> adj;
+vector <set <int>> adj, inv;
 vector <string> lines;
 vector <int> blocks, identations;
 // Para el DFS y para las líneas visitadas
 vector <bool> visited;
-// Mapa de variables con las líneas para revisar error
-// TO-DO: set <state>. (L, 0) indica definición y (L, 1) indica uso
-map <char, set <state>> vars; 
-// Tiene los bloques donde las variables están indefinidas
-map <char, vector <int>> undefined_vars;
-map <int, vector <char>> block_vars;
 // Almacena la información de cada while
 map <state, vector <int>> node_to_while;
 
-// ultima
+// Los mapas que contienen la información de las variables y caminos
 map <int, vector <int>> info_var;
+map <char, vector <int>> roads;
 
 // Encontrar el lower bound (estrictamente menor) del set s
 int get_lower_bound(set <int> s, int bound) {
@@ -89,24 +84,42 @@ void var_detector(string s, int line) {
 		info_var[blocks[line]][s[last]-'a'] = 1; 
 }
 
+void dfs(int u, char var, vector <int> camino) {
+	// Si no está vacío, ya encontramos un camino erróneo
+	if (!roads[var].empty())
+		return;
 
-void dfs(int u, vector <bool> &defined) {
 	visited[u] = 1;
+	camino.push_back(u);
 
+	bool ok = 0;
 	for (int v : adj[u]) {
-		// Reiniciamos el estado de cada variable
 		if (!visited[v]) {
-			for (char var : block_vars[v]) {
-				int pos = var - 'a';
-				// Accedemos a la información de la variable
-				for (auto [block, status] : vars[var])
-					if (v == block && status == 0)
-						defined[pos] = true;
+			// En este camino sí se definió la variable var
+			if (info_var[v][var-'a'] == 0) {
+				ok = 1;
+				break;
 			}
 
-			dfs(v, defined);
+			camino.push_back(v);
+			dfs(v, var, camino);
 		}
 	}
+
+	if (!ok) 
+		roads[var] = camino;
+}
+
+vector <string> retrieve_road(vector <int> info_blocks) {
+	// Es el bloque con mayor valor
+	vector <string> res;
+	int MX = info_blocks[0];
+
+	int i = 0;
+	while (blocks[i] <= MX)
+		res.push_back(lines[i++]);
+
+	return res;
 }
 
 // start := línea de inicio del while
@@ -460,9 +473,9 @@ int main() {
 	}
 	
 	adj.resize(nodos);
+	inv.resize(nodos);
 	visited.assign(nodos, false);
 	build(0, bloques, false);
-
 
 	// Usar los elementos de whiles para arreglar las aristas de nodos dentro del while
 	for (auto itr = node_to_while.begin(); itr != node_to_while.end(); itr++) {
@@ -551,30 +564,18 @@ int main() {
 	int arcos = 0;
 	for (int i = 0; i < nodos; i++)
 		arcos += (int) adj[i].size();
-	
-	// imprime linea de texto / bloque / identacion, razones de "debugging"
-	cout << "-----INFO DEL CFG-----\n";
-	for (int i=0;i<(int)lines.size(); i++)
-		cout << "L: " << lines[i] << " / B: " << blocks[i] << " / I: " << identations[i] << '\n';		
 
-	// Imprime el mapa vars
-	cout << "-----MAPA DE VARIABLES-----\n";
-	for (auto itr = vars.begin(); itr != vars.end(); itr++) {
-		char key = itr->first;
-		set <state> s = vars[key];
-		cout << key << ": ";
-		for (auto [block, status] : s) 
-			cout << '(' << block << ' ' << status << ") ";
-		cout << '\n';
-	}
-	
-	cout << "-----ARISTAS-----\n";
-	for (int i = 0; i < nodos; i++) {
-		cout << i << ": ";
-		for (int j : adj[i])
-			cout << j << ' ';
-		cout << '\n';
-	}
+	// Creamos el grafo invertido para facilitar el DFS
+	for (int i = 0; i < nodos; i++)
+		for (int v : adj[i])
+			inv[v].insert(i);
+
+	// Ejecutamos el DFS para ver las variables indefinidas
+	vector <int> empty_vector;
+	for (int i = nodos-1; i >= 0; i++) 
+		for (int j = 0; j < info_var[i].size(); j++) 
+			if (info_var[i][j] == 1)
+				dfs(i, 'a'+j, empty_vector);
 
 	cout << "CFG\n";
 	cout << "Nodos: " << nodos << '\n';
@@ -582,9 +583,20 @@ int main() {
 	cout << "Componentes conexos: 1\n\n";
 	
 	cout << "Variables indefinidas\n";
-	cout << "Variable: \n";
-	cout << "Camino: \n\n";
-	
+	for (int i = 0; i < 26; i++) {
+		vector <int> camino = roads['a'+i];
+		if (!camino.empty()) {
+			cout << "Variable: ";
+			cout << 'a'+i << '\n';
+
+			cout << "Camino: ";
+			vector <string> code = retrieve_road(camino);
+			for (int j = 0; j < code.size(); j++) 
+				cout << code[j] << ", ";
+			cout << '\n';
+		}
+	}
+
 	cout << "Complejidad ciclomatica\n";
 	cout << arcos - nodos + 2 << "\n";
 	
