@@ -66,15 +66,12 @@ void var_detector(string s, int line) {
 		return;
 
 	if (!is_valid_char(s[1])) {
-		//block_vars[blocks[line]].push_back(s[0]);
 		if (s[2] == '=')
 			// Caso: x = 1, y = 2, ...
-			return;
-			//info_var[blocks[line]][s[0]-'a'] = 0;
+			info_var[blocks[line]][s[0]-'a'] = 0;
 		else
 			// Caso: x -= 2, x *= 3, etc.
-			return;
-			//info_var[blocks[line]][s[0]-'a'] = 1;
+			info_var[blocks[line]][s[0]-'a'] = 1;
 	}
 
 	for (int i=1; i<size-1; i++) {
@@ -82,19 +79,14 @@ void var_detector(string s, int line) {
 		if (!is_valid_char(s[i]) || s[i+1] == '(')
 			continue;
 
-		if (!is_valid_char(s[i-1]) && !is_valid_char(s[i+1])) {
-			//block_vars[blocks[line]].push_back(s[i]);
-			return;
-			// info_var[blocks[line]][s[i]-'a'] = 1;
-		}
+		if (!is_valid_char(s[i-1]) && !is_valid_char(s[i+1]))
+			info_var[blocks[line]][s[i]-'a'] = 1;
 	}
 
 	int last = size-1;
-	if (is_valid_char(s[last])) {
-		//block_vars[blocks[line]].push_back(s[last]);
-		return;
-		// info_var[blocks[line]][s[last]-'a'] = 1; 
-	}
+	// Ultima letra de la linea
+	if (is_valid_char(s[last]))
+		info_var[blocks[line]][s[last]-'a'] = 1; 
 }
 
 
@@ -446,6 +438,18 @@ int main() {
 		identations.push_back(0);
 	}
 
+	// Entregamos el último índice del vector blocks
+	int bloques = (int) blocks.size();
+	bloques--;
+	// Entrega el número de nodos y agregamos el nodo "FIN"
+	int nodos = blocks[bloques];
+	nodos++;
+
+	// Creamos los vectores del mapa
+	vector <int> v (26, -1);
+	for (int i = 0; i < nodos; i++)
+		info_var[i] = v;
+
 	// Corremos el detector de variables. Las líneas están 0-indexadas
 	int current = 0;
 	for (string line : lines) {
@@ -455,20 +459,10 @@ int main() {
 		var_detector(line, current++);
 	}
 	
-	// Entregamos el último índice del vector blocks
-	int bloques = (int) blocks.size();
-	bloques--;
-	// Entrega el número de nodos y agregamos el nodo "FIN"
-	int nodos = blocks[bloques];
-	nodos++;
-
 	adj.resize(nodos);
 	visited.assign(nodos, false);
 	build(0, bloques, false);
 
-	for (int i = 0; i < nodos; i++)
-		continue;
-		// info_var[nodos] = vector <int> (26, -1);
 
 	// Usar los elementos de whiles para arreglar las aristas de nodos dentro del while
 	for (auto itr = node_to_while.begin(); itr != node_to_while.end(); itr++) {
@@ -528,7 +522,6 @@ int main() {
 
 			auto itr = adj[blocks[i]].end();
 			// Añadimos el invariante. Un if tiene a lo más 2 salidas.
-			// NO CAMBIAR POR UN > 2. PUEDE PARECER LÓGICO PERO TRAE PROBLEMAS.
 			int copy = adj[blocks[i]].size();
 			while (copy-- > 2) {
 				itr--;
