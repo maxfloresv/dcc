@@ -39,11 +39,40 @@ ASSETS = {
     "cat_obj": getAssetPath("cat.obj")
 }
 
+# T3 stuff:
+def generateT(t):
+    return np.array([[1, t, t**2, t**3]]).T
+
+def hermiteMatrix(P1, P2, T1, T2):
+    G = np.concatenate((P1, P2, T1, T2), axis=1)
+    Mh = np.array([[1, 0, -3, 2], [0, 0, 3, -2], [0, 1, -2, 1], [0, 0, -1, 1]])
+
+    return np.matmul(G, Mh)
+
+def evalCurve(M, N):
+    ts = np.linspace(0.0, 1.0, N)
+    curve = np.ndarray(shape=(N, 3), dtype=float)
+    for i in range(len(ts)):
+        T = generateT(ts[i])
+        curve[i, 0:3] = np.matmul(M, T).T
+
+    return curve
+
+# Entrega el mapeo de esféricas a cartesianas según el sist. de coords.
+def cartesianMapping(R, theta, phi):
+    x = R * np.cos(theta) * np.cos(phi)
+    y = R * np.sin(phi)
+    z = R * np.sin(theta) * np.cos(phi)
+
+    return np.array([x, y, z])
+
+# -
 TEX_PARAMS = [GL_REPEAT, GL_REPEAT, GL_NEAREST, GL_NEAREST]
 
 class Controller(pyglet.window.Window):
     def __init__(self, width, height, title=f"Tarea 3 - Máximo Flores Valenzuela"):
         super().__init__(width, height, title)
+        
         self.total_time = 0.0
 
 class SceneGraph:
@@ -103,7 +132,7 @@ class SceneGraph:
         # Bus
         bus_shape = self.createTextureShape("bus_obj", None)
         self.bus = sg.SceneGraphNode("bus")
-        transform = [tr.uniformScale(0.1), tr.translate(50, 0, -30), tr.rotationY(np.pi), tr.rotationX(3 * np.pi / 2)]
+        transform = [tr.uniformScale(0.1), tr.translate(50, 0, -30), tr.rotationY(np.pi), tr.rotationX(3 * np.pi / 2), tr.rotationY(np.pi / 2)]
         self.bus.transform = tr.matmul(transform)
         self.bus.childs += [bus_shape]
         self.root.childs += [self.bus]
@@ -111,7 +140,7 @@ class SceneGraph:
         # Arbol
         arbol_shape = self.createTextureShape("tree_obj", None)
         self.tree = sg.SceneGraphNode("tree")
-        transform = [tr.uniformScale(0.1), tr.translate(-18, 0, 20)]
+        transform = [tr.uniformScale(0.1), tr.translate(-18, 0, 20), tr.rotationX(np.pi / 2)]
         self.tree.transform = tr.matmul(transform)
         self.tree.childs += [arbol_shape]
         self.root.childs += [self.tree]
@@ -119,7 +148,7 @@ class SceneGraph:
         # Piso
         floor_shape = self.createTextureShape("floor_obj", None)
         self.floor = sg.SceneGraphNode("floor_obj")
-        transform = [tr.scale(3, 0.2, 3), tr.translate(0, -2, 0)]
+        transform = [tr.scale(3, 0.2, 3), tr.translate(0, -2, 0), tr.rotationY(np.pi / 2)]
         self.floor.transform = tr.matmul(transform)
         self.floor.childs += [floor_shape]
         self.root.childs += [self.floor]
@@ -185,8 +214,8 @@ class Camera:
             # de la transformación
             self.eye = np.array(tr.matmul([
                 tr.translate(x, y, z),
-                tr.rotationY(ship.rot_theta),
-                tr.translate(-5.0, 2-5*np.sin(ship.rot_phi), 0.0),
+                tr.rotationY(ship.rot_phi),
+                tr.translate(-5.0, 0.0, 0.0),
                 np.array([0.0, 0.0, 0.0, 1.0])
             ])[0:3])
 
@@ -205,10 +234,10 @@ class Movement:
         # Coordenadas de la nave
         self.coords = coords
         if self.coords is None:
-            self.coords = np.array([0.0, 0.0, 0.0])
+            self.coords = np.array([0.0, 1.0, 0.0])
 
         # Calibración de la rotación (tolerancia)
-        self.tol = 0.05
+        self.tol = 0.1
 
         # Limites del mapa
         self.xlim = xlim
@@ -220,27 +249,41 @@ class Movement:
 
         self.rot_theta = 0
         self.rot_phi = 0
+        self.angle_x = 0
 
         # Ojo que theta está definido desde el centro de la esfera
         # en la escena. Y en las coordenadas esféricas, se define
         # como el ángulo que cae, por eso debe ser pi/2 - theta.
-        self.theta = self.rot_theta
-        self.phi = self.rot_phi
+        self.theta = 0
+        self.phi = 0
+        # El ángulo relacionado con la pirueta
+        self.alpha = 0
 
         # Rapidez de movimiento y rapidez de retroceso
         self.scale_speed = 0.25
         self.knockback = self.scale_speed / 10
 
-    def update(self):
-        # Actualizamos las rotaciones por ángulo
+    def update(self, graph):
+        [x, y, z] = self.coords
+        
+        # Las transformaciones se hacen por frame
+        rotation = [tr.rotationZ(self.rot_phi), tr.rotationY(self.rot_theta), tr.rotationX(self.angle_x)]
+        movement = [tr.translate(x, y, z)]
+        graph.naves.transform = tr.matmul(movement+rotation)
+
         self.rot_theta += self.theta * self.tol
         self.rot_phi += self.phi * self.tol
-        [x, y, z] = self.coords
+        self.angle_x += self.alpha * self.tol
+
+        # Hacemos la pirueta hasta que llegemos a 2pi
+        if self.angle_x > 2 * np.pi:  
+            self.alpha = 0
+            self.angle_x = 0
 
         # Si |x| <= xlim, está dentro de los límites del mapa. Actualizamos
         # y hacemos la transformación de cartesianas a esféricas
         if abs(x) <= self.xlim:
-            self.coords[0] += self.x * np.cos(self.rot_phi) * np.cos(self.rot_theta) * self.scale_speed
+            self.coords[0] += self.x * np.cos(self.rot_theta) * np.cos(self.rot_phi) * self.scale_speed
         # En cualquier otro caso, está fuera de los límites
         elif x >= self.xlim:
             self.coords[0] -= self.knockback
@@ -263,11 +306,101 @@ class Movement:
         else:
             self.coords[2] += self.knockback
 
+        self.phi = 0
+
+class Route:
+    def __init__(self) -> None:
+        self.route = []
+        self.directions = []
+        self.special_points = []
+        self.curve = np.ndarray(shape=(0, 3), dtype=float)
+        self._play = False
+        self.N = 50
+        # n es la iteración actual en el recorrido de las curvas de Hermite
+        self.n = 0
+
+    def save(self, ship):
+        # Agregamos la posición y dirección inicial
+        [x, y, z] = ship.coords
+        self.route.append(np.array([x, y, z]))
+        self.directions.append(np.array([ship.rot_theta, ship.rot_phi]))
+
+        points = len(self.route)
+        # Necesitamos más de un punto para crear una curva
+        if points > 1:
+            # Extraemos los dos últimos puntos de la lista
+            [prev_last, last] = self.route[-2:]
+
+            # A partir de esta información, creamos los puntos
+            P1 = np.array([prev_last]).T
+            P2 = np.array([last]).T
+
+            [x1, y1, z1] = prev_last
+            [x2, y2, z2] = last
+
+            dx = np.square(x1-x2)
+            dy = np.square(y1-y2)
+            dz = np.square(z1-z2)
+
+            R = np.sqrt(dx+dy+dz)
+
+            # Extraemos la información de las últimas 2 direcciones
+            [prev_last, last] = self.directions[-2:]
+
+            [theta1, phi1] = prev_last
+            [theta2, phi2] = last 
+
+            T1 = np.array([cartesianMapping(R, theta1, phi1)]).T
+            T2 = np.array([cartesianMapping(R, theta2, phi2)]).T
+
+            GMh = hermiteMatrix(P1, P2, T1, T2)
+            curve = evalCurve(GMh, 100)
+            self.curve = np.concatenate((self.curve, curve), axis=0)
+
+            last_point = len(self.curve)-1
+            self.special_points.append(last_point)
+
+    def play(self, ship, graph):
+        # len(self.curve) va directamente relacionado con N, el número
+        # de iteraciones para cada spline
+        total_points = len(self.curve)
+        if self._play and total_points != 0:
+            # Si llegamos al último punto, recorrimos toda la curva
+            if self.n == total_points-1:
+                self.n = 0
+
+            # Actualizamos la posición de la nave
+            for i in range(0, 3):
+                ship.coords[i] = self.curve[self.n][i]
+
+            # Si no es un punto de cambio de curva, hacemos el movimiento
+            # Ojo que los índices que indican cambios son múltiplos de N-1
+            if self.n % (self.N - 1) != 0:
+                dx = self.curve[self.n+1][0] - self.curve[self.n][0]
+                dy = self.curve[self.n+1][1] - self.curve[self.n][1]
+                dz = self.curve[self.n+1][2] - self.curve[self.n][2]
+
+                dist3d = np.sqrt(np.square(dx) + np.square(dy) + np.square(dz))
+                dist2d = np.sqrt(np.square(dx) + np.square(dy))
+
+                # Usando el mapeo inverso
+                ship.rot_theta = np.arccos(dz / dist3d)
+                ship.rot_phi = np.sign(dy) * np.arccos(dx / dist2d)
+
+        ship.update(graph)
+        self.n += 1
+                
+    # Sólo para propósitos de testing, y no debe ser invocada en el envío final
+    def debug(self):
+        if len(self.route) > 0:
+            print("Added point: {}".format(self.route[-1]))
+            print("Direction: {}".format(self.directions[-1]))
+
 # Parámetros de la cámara, modificar para cambiar perspectiva inicial
 cam_at = np.array([0.0, 0.0, 0.0])
 # Alejamos la posición inicial para que renderice el escenario bien
 cam_eye = np.array([5.0, 5.0, 5.0])
-# El vector hacia arriba debe coincidir con el eje Y
+# El vector hacia arriba debe coincidir con el eje Z
 cam_up = np.array([0.0, 1.0, 0.0])
 
 # Creamos lo necesario para que la escena funcione bien
@@ -275,6 +408,7 @@ controller = Controller(width=WIDTH, height=HEIGHT)
 scgraph = SceneGraph()
 camera = Camera(cam_at, cam_eye, cam_up)
 movement = Movement()
+route = Route()
 
 # Con el setup, instanciamos el controlador de la ventana
 glClearColor(0.1, 0.1, 0.1, 1.0)
@@ -284,11 +418,30 @@ glUseProgram(scgraph.pipeline.shaderProgram)
 # Apretar una tecla
 @controller.event
 def on_key_press(symbol, modifiers):
-    # A y D son rotaciones en el eje Z
-    if symbol == pyglet.window.key.A:
-        movement.rot_phi -= 1
-    if symbol == pyglet.window.key.D:
-        movement.rot_phi += 1
+    # Para cerrar la ventana
+    if symbol == pyglet.window.key.ESCAPE:
+        controller.close()
+
+    # Para cambiar la perspectiva
+    if symbol == pyglet.window.key.C:
+        camera.change_projection(movement)
+
+    if symbol == pyglet.window.key._1:
+        route.n = 0
+        # Cambiamos el modo de reproducción
+        route._play = not route._play
+
+    # El modo play desactiva las opciones de abajo
+    if route._play:
+        return
+    
+    # Pirueta
+    if symbol == pyglet.window.key.P:
+        movement.alpha = 1
+
+    # Grabación de la ruta
+    if symbol == pyglet.window.key.R:
+        route.save(movement)
 
     # W y S es avanzar o retroceder
     if symbol == pyglet.window.key.W:
@@ -296,22 +449,23 @@ def on_key_press(symbol, modifiers):
     if symbol == pyglet.window.key.S:
         movement.x -= 1
 
-    # Para cambiar la perspectiva
-    if symbol == pyglet.window.key.C:
-        camera.change_projection(movement)
-        
-    # Para cerrar la ventana
-    if symbol == pyglet.window.key.ESCAPE:
-        controller.close()
+    # A y D son rotaciones en el eje Z
+    if symbol == pyglet.window.key.A:
+        movement.theta -= 1
+    if symbol == pyglet.window.key.D:
+        movement.theta += 1
 
 # Soltar una tecla
 @controller.event
 def on_key_release(symbol, modifiers):
+    if route._play:
+        return
+
     # Hacemos lo contrario para detener el movimiento
     if symbol == pyglet.window.key.A:
-        movement.rot_phi += 1
+        movement.theta += 1
     if symbol == pyglet.window.key.D:
-        movement.rot_phi -= 1
+        movement.theta -= 1
     if symbol == pyglet.window.key.W:
         movement.x -= 1
     if symbol == pyglet.window.key.S:
@@ -320,58 +474,31 @@ def on_key_release(symbol, modifiers):
 # What happens when the user moves the mouse
 @controller.event
 def on_mouse_motion(x, y, dx, dy):
+    if route._play:
+        return
+    
     if dy > 0:
-        movement.rot_theta = 0.1
+        movement.phi = -0.5
     if dy < 0:
-        movement.rot_theta = 0.1
+        movement.phi = 0.5
 
 @controller.event
 def on_draw():
     controller.clear()
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
-    # Primero actualizamos el movimiento
-    movement.update()
+    # Vemos si la ruta se puede reproducir en cada frame
+    route.play(movement, scgraph)
 
-    rot_matrix = [tr.rotationY(-movement.rot_theta), tr.rotationZ(movement.rot_phi)]
-    move_matrix = [tr.translate(movement.coords[0], movement.coords[1], movement.coords[2])]
+    # Luego, actualizamos el movimiento
+    movement.update(scgraph)
+
+    #rot_matrix = [tr.rotationZ(movement.rot_phi), tr.rotationY(movement.rot_theta), tr.rotationX(movement.angle_x)]
+    #move_matrix = [tr.translate(movement.coords[0], movement.coords[1], movement.coords[2])]
 
     # Para posicionar las naves de atrás
     scgraph.nave_back_left.transform = [tr.translate(-2, -0.5, 0)]
     scgraph.nave_back_right.transform = [tr.translate(-2, 0.5, 0)]
-
-    # Aplastamiento para las sombras
-    """
-    scaling = 0.001    
-    flattening = [tr.scale(0.1, 0.1, scaling)]
-    front = sg.findPosition(scgraph.naves, "nave_front")
-    x, y = front[0][0], front[1][0]
-    scgraph.front_shadow.transform = tr.matmul([ \
-            tr.translate(x, y, scaling), 
-            flattening, 
-            rot_matrix, 
-            UNIFORM
-        ])
-
-    back_left = sg.findPosition(scgraph.naves, "nave_back_left")
-    x, y = back_left[0][0][0], back_left[0][1][0]
-    scgraph.back_left_shadow.transform = tr.matmul([ \
-            tr.translate(x, y, scaling), 
-            flattening, 
-            rot_matrix, 
-            UNIFORM
-        ])
-
-    back_right = sg.findPosition(scgraph.naves, "nave_back_right")
-    x, y = back_right[0][0][0], back_right[0][1][0]
-    scgraph.back_left_shadow.transform = tr.matmul([ \
-            tr.translate(x, y, scaling), 
-            flattening, 
-            rot_matrix, 
-            UNIFORM
-        ])"""
-
-    scgraph.naves.transform = tr.matmul([move_matrix+rot_matrix])
 
     # Actualizamos la cámara para que siga a las naves
     camera.update(movement)
