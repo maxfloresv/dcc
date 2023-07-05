@@ -42,8 +42,9 @@ ASSETS = {
     "sphere_obj": getAssetPath("sphere.obj")
 }
 
-# Definición del puntaje
 puntaje = 0
+# Debe ser un número grande para minimizar siempre
+record = 1e9
 
 def generateT(t):
     return np.array([[1, t, t**2, t**3]]).T
@@ -84,12 +85,66 @@ def cartesianMapping(R, theta, phi):
 
     return np.array([x, y, z])
 
+def computeRecord():
+    global record
+    with open('records.txt', 'r') as f:
+        lines = f.readlines()
+        # Borramos el salto de línea del final
+        lines = [line.strip() for line in lines]
+        for line in lines:
+            current = float(line)
+            record = min(record, current)
+
+# Genera un número random en una unión disjunta de dos intervalos
+def disjointRandom(I1, I2):
+    [first_inf, first_sup] = I1
+    [second_inf, second_sup] = I2
+
+    rand_bool = random.random() < 0.5
+    return random.randint(first_inf, first_sup) if rand_bool else random.randint(second_inf, second_sup)
+
 class Controller(pyglet.window.Window):
-    def __init__(self, width, height, title=f"Tarea 3 - Máximo Flores Valenzuela"):
+    def __init__(self, width, height, title=f"Tarea 4 - Máximo Flores Valenzuela"):
         super().__init__(width, height, title)
         
         self.total_time = 0.0
+        self.can_reset = False
         self.set_exclusive_mouse(True)
+
+    def reset(self, ship, graph, point):
+        # Volvemos a setearlo a falso para que no pueda reintentar in-game
+        self.can_reset = False
+
+        global puntaje
+        # Reiniciamos toda la escena
+        self.total_time = 0.0
+        puntaje = 0
+        
+        [x, y, z] = ship.coords
+        theta = ship.rot_theta
+        phi = ship.rot_phi
+        angle_x = ship.angle_x
+
+        translate_matrix = [tr.translate(-x, -y, -z)]
+        rot_matrix = [
+            tr.rotationX(-phi), 
+            tr.rotationY(-theta), 
+            tr.rotationZ(-angle_x)
+        ]
+        graph.naves.transform = tr.matmul(translate_matrix+rot_matrix)
+
+        # Reiniciamos todos los valores de la nave
+        ship.x = 0
+        ship.rot_theta = 0
+        ship.rot_phi = 0
+        ship.angle_x = 0
+        ship.theta = 0
+        ship.phi = 0
+        ship.alpha = 0
+
+        # Por último, volvemos a dibujar un punto para que no esté 
+        # en la misma posición
+        point.draw(graph)
 
 class SceneGraph:
     def __init__(self) -> None:
@@ -266,7 +321,7 @@ class Movement:
 
         # Rapidez de movimiento y rapidez de retroceso
         self.movement_speed = 0.125
-        self.angle_speed = 2e-2
+        self.angle_speed = 1.75e-2
         # No asustarse. Este fue a puro ensayo y error.
         self.knockback = (self.movement_speed + self.angle_speed) / 10
 
@@ -427,8 +482,8 @@ class Point:
         sphere_shape = graph.createTextureShape("sphere_obj", None)
 
         # Posiciones aleatorias de los puntos
-        pos_x = random.randint(-18, 18)
-        pos_z = random.randint(-18, 18)
+        pos_x = disjointRandom([-18, -7], [7, 18])
+        pos_z = disjointRandom([-18, -7], [7, 18])
 
         # Creamos un nodo por cada esfera (son independientes)
         transform = []
@@ -466,6 +521,8 @@ movement = Movement()
 route = Route()
 point = Point()
 point.draw(scgraph)
+# Calculamos el récord actual
+computeRecord()
 
 # Con el setup, instanciamos el controlador de la ventana
 glClearColor(0.1, 0.1, 0.1, 1.0)
@@ -477,6 +534,9 @@ def on_key_press(symbol, modifiers):
     # Para cerrar la ventana
     if symbol == pyglet.window.key.ESCAPE:
         controller.close()
+
+    if controller.can_reset and symbol == pyglet.window.key.R:
+        controller.reset(movement, scgraph, point)
 
     # Reproducción de ruta
     if symbol == pyglet.window.key._1:
@@ -493,11 +553,6 @@ def on_key_press(symbol, modifiers):
     # Pirueta
     if symbol == pyglet.window.key.P:
         movement.alpha = 1
-
-    # Grabación de la ruta
-    if symbol == pyglet.window.key.R:
-        route.save(movement)
-        route.debug()
 
     # W y S es avanzar o retroceder
     if symbol == pyglet.window.key.W:
@@ -528,7 +583,8 @@ def on_key_release(symbol, modifiers):
 
 @controller.event
 def on_draw():
-    global puntaje
+    global puntaje, record
+
     controller.clear()
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
     glEnable(GL_DEPTH_TEST)
@@ -553,15 +609,51 @@ def on_draw():
 
     sg.drawSceneGraphNode(scgraph.root, scgraph.pipeline, "model")
 
-    text = pyglet.text.Label("Puntaje: {}".format(puntaje),
+    points_label = pyglet.text.Label("Puntaje: {}".format(puntaje),
                           font_name='Times New Roman',
-                          font_size=30,
-                          x=100, y=9*HEIGHT//10,
-                          anchor_x='center', anchor_y='center')
+                          font_size=22,
+                          x=30, y=9.9*HEIGHT//10,
+                          anchor_x='left', anchor_y='top')
+    
+    time_label = pyglet.text.Label("Tiempo: {:.2f} | Récord: {:.2f}".format(controller.total_time, record),
+                          font_name='Times New Roman',
+                          font_size=22,
+                          x=30, y=9.5*HEIGHT//10,
+                          anchor_x='left', anchor_y='top')
     
     glUseProgram(0)
     glDisable(GL_DEPTH_TEST)
-    text.draw()
+
+    curr_time = controller.total_time
+    if not controller.can_reset and puntaje == 100 and curr_time < 60:
+        PPS = (100 / 5) / 60
+        winner_label = pyglet.text.Label("Qué crack B)\n PPS: {:.2f}".format(PPS),
+            font_name='Times New Roman',
+            font_size=30,
+            x=WIDTH//2, y=3.5*HEIGHT//4,
+            anchor_x='center', anchor_y='top')
+        
+        personal_time = "%.2f" % round(controller.total_time, 2)
+        with open('records.txt', 'a') as f:
+            f.write(personal_time)
+            f.write('\n')
+        
+        record = min(record, float(personal_time))
+        winner_label.draw()
+        controller.can_reset = True
+
+    elif not controller.can_reset and puntaje < 100 and curr_time >= 60:
+        loser_label = pyglet.text.Label("Perdiste :( qué triste",
+            font_name='Times New Roman',
+            font_size=30,
+            x=WIDTH//2, y=3.5*HEIGHT//4,
+            anchor_x='center', anchor_y='top')
+        
+        loser_label.draw()
+        controller.can_reset = True
+
+    points_label.draw()
+    time_label.draw()
 
 # Each time update is called, on_draw is called again
 def update(dt, controller):
