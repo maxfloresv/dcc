@@ -6,6 +6,7 @@ import sys
 import os
 import pyglet
 import numpy as np
+import random
 
 import libs.shaders as sh
 import libs.transformations as tr
@@ -25,6 +26,7 @@ PROJECTIONS = [
     tr.perspective(45, float(WIDTH)/float(HEIGHT), 0.1, 100)
 ]
 TEX_PARAMS = [GL_REPEAT, GL_REPEAT, GL_NEAREST, GL_NEAREST]
+EPSILON = 1
 
 ASSETS = {
     "pochita_obj": getAssetPath("pochita3.obj"),
@@ -36,8 +38,12 @@ ASSETS = {
     "tree_obj": getAssetPath("tree.obj"),
     "shadow_tex": getAssetPath("shadow.png"),
     "bus_obj": getAssetPath("bus.obj"),
-    "cat_obj": getAssetPath("cat.obj")
+    "cat_obj": getAssetPath("cat.obj"),
+    "sphere_obj": getAssetPath("sphere.obj")
 }
+
+# Definición del puntaje
+puntaje = 0
 
 def generateT(t):
     return np.array([[1, t, t**2, t**3]]).T
@@ -56,6 +62,18 @@ def evalCurve(M, N):
         curve[i, 0:3] = np.matmul(M, T).T
 
     return curve
+
+def distanceXZ(p, q):
+    [x1, y1, z1] = p
+    [x2, y2, z2] = q
+
+    dx = np.square(x1 - x2)
+    dz = np.square(z1 - z2)
+
+    return np.sqrt(dx + dz)
+
+def collision(p, q, r):
+    return distanceXZ(p, q) <= r
 
 # Entrega el mapeo de esféricas a cartesianas según el sist. de coords.
 def cartesianMapping(R, theta, phi):
@@ -96,19 +114,6 @@ class SceneGraph:
 
         self.naves.childs += [self.nave_front, self.nave_back_left, self.nave_back_right]
         self.root.childs += [self.naves]
-
-        # Sombras de las naves
-        """
-        self.shadows = sg.SceneGraphNode("shadows")
-        self.front_shadow = sg.SceneGraphNode("front_shadow")
-        self.front_shadow.childs += [nave_shadow]
-        self.back_left_shadow = sg.SceneGraphNode("back_left_shadow")
-        self.back_left_shadow.childs += [nave_shadow]
-        self.back_right_shadow = sg.SceneGraphNode("back_right_shadow")
-        self.back_right_shadow.childs += [nave_shadow]
-
-        self.shadows.childs += [self.front_shadow, self.back_left_shadow, self.back_right_shadow]
-        self.root.childs += [self.shadows]"""
 
         # Elementos de la escena
         # Casa
@@ -185,7 +190,7 @@ class Camera:
         self.z = self.eye[2] ** 2
 
         # Proy. ortogonal por defecto
-        self.opt_proj = 0
+        self.opt_proj = 1
         self.projection = PROJECTIONS[self.opt_proj]
 
     # update: Actualiza los parámetros de la cámara, siguiendo
@@ -213,8 +218,8 @@ class Camera:
             # de la transformación
             self.eye = np.array(tr.matmul([
                 tr.translate(x, y, z),
-                tr.rotationY(ship.rot_phi),
-                tr.translate(-5.0, 0.0, 0.0),
+                tr.rotationY(ship.rot_theta),
+                tr.translate(0.0, 2.0, -7.0),
                 np.array([0.0, 0.0, 0.0, 1.0])
             ])[0:3])
 
@@ -229,12 +234,12 @@ class Camera:
         self.update(ship)
 
 class Movement:
-    def __init__(self, coords=None, xlim=30, ylim=20, zlim=20) -> None:
+    def __init__(self, coords=None, xlim=21.5, ylim=20, zlim=21.5) -> None:
         # Coordenadas de la nave
         self.coords = coords
         if self.coords is None:
             # Le damos un poco de altura para que no toque el suelo
-            self.coords = np.array([0.0, 5.0, 0.0])
+            self.coords = np.array([0.0, 0.0, 0.0])
 
         # Calibración de la rotación (tolerancia)
         self.tol = 0.1
@@ -260,14 +265,15 @@ class Movement:
         self.alpha = 0
 
         # Rapidez de movimiento y rapidez de retroceso
-        self.movement_speed = 0.15
-        self.angle_speed = 0.05
+        self.movement_speed = 0.125
+        self.angle_speed = 2e-2
         # No asustarse. Este fue a puro ensayo y error.
         self.knockback = (self.movement_speed + self.angle_speed) / 10
 
-    def update(self, graph):
+    def update(self, graph, point):
+        global puntaje
         [x, y, z] = self.coords
-        
+
         # Las transformaciones se hacen por frame
         rotation = [tr.rotationX(self.rot_phi), tr.rotationY(self.rot_theta), tr.rotationZ(self.angle_x)]
         movement = [tr.translate(x, y, z)]
@@ -276,6 +282,13 @@ class Movement:
         self.rot_theta += self.theta * self.angle_speed
         self.rot_phi += self.phi * self.angle_speed
         self.angle_x += self.alpha * self.angle_speed
+
+        # Para ver las colisiones con el punto
+        p = point.getPosition()
+
+        if p is not None and collision(self.coords, p, EPSILON):
+            puntaje += 5
+            point.draw(graph)
 
         # Hacemos la pirueta hasta que llegemos a 2pi
         if self.angle_x > 2 * np.pi:  
@@ -290,27 +303,31 @@ class Movement:
             self.coords[0] += dx
         # En cualquier otro caso, está fuera de los límites
         elif x >= self.xlim:
-            self.coords[0] -= self.knockback
+            self.coords[0] = self.xlim
         else:
-            self.coords[0] += self.knockback
+            self.coords[0] = -self.xlim
 
         # Análogo para las demás coordenadas
         if 0 <= self.coords[1] <= self.ylim:
             self.coords[1] += dy
         elif y >= self.ylim:
-            self.coords[1] -= self.knockback
+            self.coords[1] = self.ylim
         else:
-            self.coords[1] += self.knockback
+            self.coords[1] = -self.ylim 
 
         if np.abs(self.coords[2]) <= self.zlim:
             self.coords[2] += dz
         elif z >= self.zlim:
-            self.coords[2] -= self.knockback
+            self.coords[2] = self.zlim
         else:
-            self.coords[2] += self.knockback
+            self.coords[2] = -self.zlim
 
         # Evita problemas de asignación de ángulo con el mouse
         self.phi = 0
+    
+    def debug(self):
+        [x, y, z] = self.coords
+        print("(x, y, z) = ({}, {}, {})".format(x, y, z))
 
 class Route:
     def __init__(self) -> None:
@@ -342,11 +359,11 @@ class Route:
             [x1, y1, z1] = prev_last
             [x2, y2, z2] = last
 
-            dx = np.square(x1-x2)
-            dy = np.square(y1-y2)
-            dz = np.square(z1-z2)
+            dx = np.square(x1 - x2)
+            dy = np.square(y1 - y2)
+            dz = np.square(z1 - z2)
 
-            R = np.sqrt(dx+dy+dz)
+            R = np.sqrt(dx + dy + dz)
 
             # Extraemos la información de las últimas 2 direcciones
             [prev_last, last] = self.directions[-2:]
@@ -359,12 +376,12 @@ class Route:
 
             GMh = hermiteMatrix(P1, P2, T1, T2)
             curve = evalCurve(GMh, 100)
-            self.curve = np.concatenate((self.curve, curve), axis=0)
+            self.curve = np.concatenate((self.curve, curve), axis = 0)
 
-            last_point = len(self.curve)-1
+            last_point = len(self.curve) - 1
             self.special_points.append(last_point)
 
-    def play(self, ship, graph):
+    def play(self, ship, graph, point):
         # len(self.curve) va directamente relacionado con N, el número
         # de iteraciones para cada spline
         total_points = len(self.curve)
@@ -391,7 +408,7 @@ class Route:
                 ship.rot_theta = np.arccos(dz / dist3d) if dist3d != 0 else 0
                 ship.rot_phi = np.sign(dy) * np.arccos(dx / dist2d) if dist2d != 0 else 0
 
-        ship.update(graph)
+        ship.update(graph, point)
         self.n += 1
                 
     # Sólo para propósitos de testing, y no debe ser invocada en el envío final
@@ -399,6 +416,40 @@ class Route:
         if len(self.route) > 0:
             print("Added point: {}".format(self.route[-1]))
             print("Direction: {}".format(self.directions[-1]))
+
+class Point:
+    def __init__(self) -> None:
+        # Para detectar colisiones 
+        self.position = np.array([])
+        self.first_visit = True
+
+    def draw(self, graph):
+        sphere_shape = graph.createTextureShape("sphere_obj", None)
+
+        # Posiciones aleatorias de los puntos
+        pos_x = random.randint(-18, 18)
+        pos_z = random.randint(-18, 18)
+
+        # Creamos un nodo por cada esfera (son independientes)
+        transform = []
+        
+        if self.first_visit:
+            graph.sphere = sg.SceneGraphNode("sphere")
+            graph.sphere.childs = [sphere_shape]
+            graph.root.childs += [graph.sphere]
+            self.first_visit = False
+
+        transform += [tr.translate(pos_x, 0, pos_z), tr.uniformScale(0.25)]
+        self.position = np.array([pos_x, 0, pos_z])
+
+        graph.sphere.transform = tr.matmul(transform)
+
+    # Para obtener la última posición
+    def getPosition(self):
+        if len(self.position) == 0:
+            return None
+    
+        return self.position
 
 # Parámetros de la cámara, modificar para cambiar perspectiva inicial
 cam_at = np.array([0.0, 0.0, 0.0])
@@ -413,6 +464,8 @@ scgraph = SceneGraph()
 camera = Camera(cam_at, cam_eye, cam_up)
 movement = Movement()
 route = Route()
+point = Point()
+point.draw(scgraph)
 
 # Con el setup, instanciamos el controlador de la ventana
 glClearColor(0.1, 0.1, 0.1, 1.0)
@@ -425,14 +478,13 @@ def on_key_press(symbol, modifiers):
     if symbol == pyglet.window.key.ESCAPE:
         controller.close()
 
-    # Cambio de perspectiva
-    if symbol == pyglet.window.key.C:
-        camera.change_projection(movement)
-
     # Reproducción de ruta
     if symbol == pyglet.window.key._1:
         route.n = 0
         route._play = not route._play
+
+    if symbol == pyglet.window.key.TAB:
+        movement.debug()
 
     # El modo reproducción desactiva las opciones de abajo
     if route._play:
@@ -455,9 +507,9 @@ def on_key_press(symbol, modifiers):
 
     # A y D son rotaciones en el plano XZ
     if symbol == pyglet.window.key.A:
-        movement.theta -= 1
-    if symbol == pyglet.window.key.D:
         movement.theta += 1
+    if symbol == pyglet.window.key.D:
+        movement.theta -= 1
 
 @controller.event
 def on_key_release(symbol, modifiers):
@@ -466,38 +518,31 @@ def on_key_release(symbol, modifiers):
 
     # Hacemos lo contrario para detener el movimiento
     if symbol == pyglet.window.key.A:
-        movement.theta += 1
-    if symbol == pyglet.window.key.D:
         movement.theta -= 1
+    if symbol == pyglet.window.key.D:
+        movement.theta += 1
     if symbol == pyglet.window.key.W:
         movement.x -= 1
     if symbol == pyglet.window.key.S:
         movement.x += 1
 
 @controller.event
-def on_mouse_motion(x, y, dx, dy):
-    if route._play:
-        return
-    
-    if dy > 0:
-        movement.phi = -0.5
-    if dy < 0:
-        movement.phi = 0.5
-
-@controller.event
 def on_draw():
+    global puntaje
     controller.clear()
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+    glEnable(GL_DEPTH_TEST)
+    glUseProgram(scgraph.pipeline.shaderProgram)
 
     # Vemos si la ruta se puede reproducir en cada frame
-    route.play(movement, scgraph)
+    route.play(movement, scgraph, point)
 
     # Luego, actualizamos el movimiento
-    movement.update(scgraph)
+    movement.update(scgraph, point)
 
     # Para posicionar las naves de atrás
-    scgraph.nave_back_left.transform = [tr.translate(-2, 0, -0.5)]
-    scgraph.nave_back_right.transform = [tr.translate(-2, 0, 0.5)]
+    scgraph.nave_back_left.transform = [tr.translate(-0.75, 0, -1.0)]
+    scgraph.nave_back_right.transform = [tr.translate(0.75, 0, -1.0)]
 
     # Actualizamos la cámara para que siga a las naves
     camera.update(movement)
@@ -507,6 +552,16 @@ def on_draw():
     glUniformMatrix4fv(glGetUniformLocation(scgraph.pipeline.shaderProgram, "view"), 1, GL_TRUE, view)
 
     sg.drawSceneGraphNode(scgraph.root, scgraph.pipeline, "model")
+
+    text = pyglet.text.Label("Puntaje: {}".format(puntaje),
+                          font_name='Times New Roman',
+                          font_size=30,
+                          x=100, y=9*HEIGHT//10,
+                          anchor_x='center', anchor_y='center')
+    
+    glUseProgram(0)
+    glDisable(GL_DEPTH_TEST)
+    text.draw()
 
 # Each time update is called, on_draw is called again
 def update(dt, controller):
